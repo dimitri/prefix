@@ -60,3 +60,23 @@ website (see http://www.art-telecom.fr/fileadmin/wopnum.rtf[]).
 
 
   CREATE INDEX idx_prefix ON prefixes USING GIST(prefix gist_prefix_ops);
+
+  dim=# \timing
+  Timing is on.
+  dim=# select * from prefixes where prefix @> '0218751234';
+   prefix |                name                 | shortname | state
+  --------+-------------------------------------+-----------+-------
+   021875 | SOCIETE FRANCAISE DU RADIOTELEPHONE | SFR       | S
+  (1 row)
+  
+  Time: 10,564 ms
+
+  dim=# set enable_seqscan to off;
+  SET
+  dim=# select * from prefixes where prefix @> '0218751234';
+   prefix |                name                 | shortname | state
+  --------+-------------------------------------+-----------+-------
+   021875 | SOCIETE FRANCAISE DU RADIOTELEPHONE | SFR       | S
+  (1 row)
+  
+  Time: 5,826 ms

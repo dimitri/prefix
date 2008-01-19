@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.2 2008/01/19 21:39:09 dim Exp $
+ * $Id: prefix.c,v 1.3 2008/01/19 22:22:03 dim Exp $
  */
 
 #include <stdio.h>
@@ -168,7 +168,7 @@ gprefix_penalty(PG_FUNCTION_ARGS)
   text *new  = (text *) DatumGetPointer(newentry->key);
   text *gp;
 
-  int  nlen, olen, gplen, dist, lastcd = 0;
+  int  nlen, olen, gplen, dist = 0;
 
   if( DirectFunctionCall2(texteq, 
 			  PointerGetDatum(new), 
@@ -187,29 +187,39 @@ gprefix_penalty(PG_FUNCTION_ARGS)
      * Consider greater common prefix length, the greater the better,
      * then for a distance of 1 (only last prefix char is different),
      * consider char code distance.
+     *
+     * With gplen the size of the greatest common prefix and dist the
+     * char code distance, the following maths should do (per
+     * AndrewSN):
+     *
+     * penalty() = dist / (256 ^ gplen)
+     *
+     * penalty(01,   03) == 2 / (256^1)
+     * penalty(123, 125) == 2 / (256^2)
+     * penalty(12,   56) == 4 / (256^0)
+     * penalty(0, 17532) == 1 / (256^0)
+     *
+     * 256 is then number of codes any text position (char) can admit.
      */
     nlen  = VARSIZE(new)  - VARHDRSZ;
     olen  = VARSIZE(orig) - VARHDRSZ;
     gp    = greater_prefix_internal(orig, new);
     gplen = VARSIZE(gp) - VARHDRSZ;
 
-    dist   = nlen - gplen;
-    lastcd = 0;
-
-    if( dist == 1 ) {
+    dist = 1;
+    if( nlen == olen ) {
       char *o = VARDATA(orig);
       char *n = VARDATA(new);
-      lastcd  = abs((int)o[olen] - (int)n[nlen]);
+      dist    = abs((int)o[olen] - (int)n[nlen]);
     }
-    *penalty = (dist + lastcd - gplen);
+    *penalty = (((float)dist) / powf(256, gplen));
   }
 
 #ifdef DEBUG
-  elog(NOTICE, "gprefix_penalty(%s, %s) [%d %d %d] = %f", 
+  elog(NOTICE, "gprefix_penalty(%s, %s) == %d/(256^%d) == %g", 
        DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(orig))),
        DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(new))),
-       gplen, dist, lastcd,
-       *penalty);
+       dist, gplen, *penalty);
 #endif
 
   PG_RETURN_POINTER(penalty);

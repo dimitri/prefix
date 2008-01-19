@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.1 2008/01/19 15:30:08 dim Exp $
+ * $Id: prefix.c,v 1.2 2008/01/19 21:39:09 dim Exp $
  */
 
 #include <stdio.h>
@@ -138,9 +138,11 @@ gprefix_consistent(PG_FUNCTION_ARGS)
 
     /**
      * We only have 1 Strategy (operator @>)
+     * and we want to avoid compiler complaints that we do not use it.
      */ 
     Assert(strategy == 1);
-    retval = prefix_contains_internal(query, key, true);
+    (void) strategy;
+    retval = prefix_contains_internal(key, query, true);
 
     PG_RETURN_BOOL(retval);
 }
@@ -237,10 +239,6 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
     text *unionL;
     text *unionR;
 
-#ifdef DEBUG
-    elog(NOTICE, "gprefix_picksplit()");
-#endif
-
     nbytes = (maxoff + 2) * sizeof(OffsetNumber);
     listL = (OffsetNumber *) palloc(nbytes);
     listR = (OffsetNumber *) palloc(nbytes);
@@ -268,6 +266,14 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
 
     v->spl_ldatum = PointerGetDatum(unionL);
     v->spl_rdatum = PointerGetDatum(unionR);
+
+#ifdef DEBUG
+    elog(NOTICE, "gprefix_picksplit(): %s %d %s %d",
+	   DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(unionL))),
+	 v->spl_nleft,
+	 DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(unionR))),
+	 v->spl_nright);
+#endif
 	
     PG_RETURN_POINTER(v);
 }

@@ -1,6 +1,23 @@
 = Prefix Opclass
 
+This module is written by Dimitri Fontaine <dim@tapoueh.org> with a
+great amount of help from AndrewSN, who was the one advising for a
+GiST opclass to solve the prefix matching problem.
+
 == Presentation
+
+Prefix matching is both very common and important in telephony
+applications, where call routing and costs depend on matching
+caller/callee phone number to an operator prefix.
+
+Let's say the prefixes table is called +prefixes+, a typical query
+will try to match a phone number to the greater prefix in the table:
+
+    SELECT * 
+      FROM prefixes
+     WHERE prefix @> '0123456789'
+  ORDER BY length(prefix)
+     LIMIT 1;
 
 == Installation
 

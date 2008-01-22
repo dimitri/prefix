@@ -47,6 +47,14 @@ CREATE AGGREGATE greater_prefix(text) (
 COMMENT ON AGGREGATE greater_prefix(text) IS 'greater prefix aggregate';
 
 --
+-- prefix penalty, for testing purpose
+--
+CREATE OR REPLACE FUNCTION prefix_penalty(text, text)
+RETURNS float
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
+--
 -- define the GiST support methods
 --
 

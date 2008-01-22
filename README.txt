@@ -2,7 +2,7 @@
 
 This module is written by Dimitri Fontaine <dim@tapoueh.org> with a
 great amount of help from AndrewSN, who was the one advising for a
-GiST opclass to solve the prefix matching problem.
+'GiST opclass' to solve the prefix matching problem.
 
 == Presentation
 
@@ -21,7 +21,7 @@ will try to match a phone number to the greater prefix in the table:
 
 == Installation
 
-Check $PATH, then
+Check +$PATH+, then
 
   make
   make install

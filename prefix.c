@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.3 2008/01/19 22:22:03 dim Exp $
+ * $Id: prefix.c,v 1.4 2008/01/22 17:47:49 dim Exp $
  */
 
 #include <stdio.h>
@@ -27,11 +27,14 @@
 PG_MODULE_MAGIC;
 
 /**
- * Operator prefix @> query and query <@ prefix
+ * - Operator prefix @> query and query <@ prefix
+ * - greater_prefix, exposed as a func and an aggregate
+ * - prefix_penalty, exposed for testing purpose
  */
 Datum prefix_contains(PG_FUNCTION_ARGS);
 Datum prefix_contained_by(PG_FUNCTION_ARGS);
 Datum greater_prefix(PG_FUNCTION_ARGS);
+Datum prefix_penalty(PG_FUNCTION_ARGS);
 
 /**
  * GiST support methods
@@ -118,9 +121,77 @@ greater_prefix(PG_FUNCTION_ARGS)
 {
 
   PG_RETURN_POINTER( greater_prefix_internal(PG_GETARG_TEXT_P(0),
-					     PG_GETARG_TEXT_P(1)) );
+					    PG_GETARG_TEXT_P(1)) );
 }
 
+/**
+ * penalty internal function, which is called in more places than just
+ * gist penalty() function, namely picksplit() uses it too.
+ *
+ * Consider greater common prefix length, the greater the better, then
+ * for a distance of 1 (only last prefix char is different), consider
+ * char code distance.
+ *
+ * With gplen the size of the greatest common prefix and dist the char
+ * code distance, the following maths should do (per AndrewSN):
+ *
+ * penalty() = dist / (256 ^ gplen)
+ *
+ * penalty(01,   03) == 2 / (256^1)
+ * penalty(123, 125) == 2 / (256^2)
+ * penalty(12,   56) == 4 / (256^0)
+ * penalty(0, 17532) == 1 / (256^0)
+ *
+ * 256 is then number of codes any text position (char) can admit.
+ */
+static inline
+float prefix_penalty_internal(text *orig, text *new)
+{
+  float penalty;
+  text *gp;
+  int  nlen, olen, gplen, dist = 0;
+
+  olen  = VARSIZE(orig) - VARHDRSZ;
+  nlen  = VARSIZE(new)  - VARHDRSZ;
+  gp    = greater_prefix_internal(orig, new);
+  gplen = VARSIZE(gp) - VARHDRSZ;
+
+  /**
+   * greater_prefix length is orig length only if orig == gp
+   */
+  if( gplen == olen )
+    penalty = 0;
+
+  dist = 1;
+  if( nlen == olen ) {
+    char *o = VARDATA(orig);
+    char *n = VARDATA(new);
+    dist    = abs((int)o[olen-1] - (int)n[nlen-1]);
+  }
+  penalty = (((float)dist) / powf(256, gplen));
+
+#ifdef DEBUG
+  elog(NOTICE, "gprefix_penalty_internal(%s, %s) == %d/(256^%d) == %g", 
+       DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(orig))),
+       DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(new))),
+       dist, gplen, penalty);
+#endif
+
+  return penalty;
+}
+
+/**
+ * For testing purposes we export our penalty function to SQL
+ */
+PG_FUNCTION_INFO_V1(prefix_penalty);
+Datum
+prefix_penalty(PG_FUNCTION_ARGS)
+{
+  float penalty = prefix_penalty_internal(PG_GETARG_TEXT_P(0),
+					  PG_GETARG_TEXT_P(1));
+
+  PG_RETURN_FLOAT4(penalty);
+}
 
 /**
  * GiST opclass methods
@@ -166,70 +237,25 @@ gprefix_penalty(PG_FUNCTION_ARGS)
   
   text *orig = (text *) DatumGetPointer(origentry->key);
   text *new  = (text *) DatumGetPointer(newentry->key);
-  text *gp;
 
-  int  nlen, olen, gplen, dist = 0;
-
-  if( DirectFunctionCall2(texteq, 
-			  PointerGetDatum(new), 
-			  PointerGetDatum(orig)) ) {
-
-#ifdef DEBUG
-    elog(NOTICE, "gprefix_penalty(%s, %s) = 0", 
-	 DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(orig))),
-	 DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(new))));
-#endif
-    *penalty = 0;
-    PG_RETURN_POINTER(penalty);
-  }
-  else {
-    /**
-     * Consider greater common prefix length, the greater the better,
-     * then for a distance of 1 (only last prefix char is different),
-     * consider char code distance.
-     *
-     * With gplen the size of the greatest common prefix and dist the
-     * char code distance, the following maths should do (per
-     * AndrewSN):
-     *
-     * penalty() = dist / (256 ^ gplen)
-     *
-     * penalty(01,   03) == 2 / (256^1)
-     * penalty(123, 125) == 2 / (256^2)
-     * penalty(12,   56) == 4 / (256^0)
-     * penalty(0, 17532) == 1 / (256^0)
-     *
-     * 256 is then number of codes any text position (char) can admit.
-     */
-    nlen  = VARSIZE(new)  - VARHDRSZ;
-    olen  = VARSIZE(orig) - VARHDRSZ;
-    gp    = greater_prefix_internal(orig, new);
-    gplen = VARSIZE(gp) - VARHDRSZ;
-
-    dist = 1;
-    if( nlen == olen ) {
-      char *o = VARDATA(orig);
-      char *n = VARDATA(new);
-      dist    = abs((int)o[olen] - (int)n[nlen]);
-    }
-    *penalty = (((float)dist) / powf(256, gplen));
-  }
-
-#ifdef DEBUG
-  elog(NOTICE, "gprefix_penalty(%s, %s) == %d/(256^%d) == %g", 
-       DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(orig))),
-       DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(new))),
-       dist, gplen, *penalty);
-#endif
-
+  *penalty = prefix_penalty_internal(orig, new);
   PG_RETURN_POINTER(penalty);
 }
 
 /**
  * prefix picksplit implementation
  *
- * Let's try a very naive first implementation
+ * The idea is to consume the SPLITVEC vector by both its start and
+ * end, inserting one or two items at a time depending on relative
+ * penalty() with current ends of new vectors.
  *
+ * Idea and perl test script per AndreSN with some modifications by me
+ * (Dimitri Fontaine).
+ *
+ * TODO: check whether qsort() is the right first pass. Another idea
+ * (by dim, this time) being to care first about items which non-empty
+ * union appears the most in the SPLITVEC vector. Perl test
+ * implementation show good results on random test data.
  */
 PG_FUNCTION_INFO_V1(gprefix_picksplit);
 Datum
@@ -241,37 +267,124 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
     GISTENTRY *ent = entryvec->vector;
 
     int	nbytes;
-    OffsetNumber i;
-    OffsetNumber split_at;
+    OffsetNumber offl, offr;
     OffsetNumber *listL;
     OffsetNumber *listR;
-    text *cur;
+    text *curl, *curr, *gp;
     text *unionL;
     text *unionR;
+    
+    /**
+     * Keeping track of penalties to insert into ListL or ListR, for
+     * both the leftmost and the rightmost element of the remaining
+     * list.
+     */
+    float pll, plr, prl, prr;
+
+    /* qsort(ent, maxoff, sizeof(text *), bttextcmp); */
 
     nbytes = (maxoff + 2) * sizeof(OffsetNumber);
     listL = (OffsetNumber *) palloc(nbytes);
     listR = (OffsetNumber *) palloc(nbytes);
-
-    split_at = FirstOffsetNumber + (maxoff - FirstOffsetNumber + 1)/2;
+    v->spl_left  = listL;
+    v->spl_right = listR;
     v->spl_nleft = v->spl_nright = 0;
 
-    v->spl_left = listL;
+    offl = FirstOffsetNumber;
+    offr = maxoff;
+
+    unionL = (text *) DatumGetPointer(ent[offl].key);
+    unionR = (text *) DatumGetPointer(ent[offr].key);
+
+    v->spl_left[v->spl_nleft++]   = offl;
+    v->spl_right[v->spl_nright++] = offr;
+    v->spl_left  = listL;
     v->spl_right = listR;
 
-    unionL = (text *) DatumGetPointer(ent[OffsetNumberNext(FirstOffsetNumber)].key);
-    
-    for (i = FirstOffsetNumber; i < split_at; i = OffsetNumberNext(i)) {
-      cur = (text *) DatumGetPointer(ent[i].key);
-      v->spl_left[v->spl_nleft++] = i;
-      unionL = greater_prefix_internal(unionL, cur);
-    }
+    for(; offl < offr; offl = OffsetNumberNext(offl), offr = OffsetNumberPrev(offr)) {
+      curl = (text *) DatumGetPointer(ent[offl].key);
+      curr = (text *) DatumGetPointer(ent[offr].key);
 
-    unionR = (text *)DatumGetPointer(ent[i].key);
-    for (; i <= maxoff; i = OffsetNumberNext(i)) {
-      cur = (text *) DatumGetPointer(ent[i].key);
-      v->spl_right[v->spl_nright++] = i;
-      unionR = greater_prefix_internal(unionR, cur);
+      pll = prefix_penalty_internal(unionL, curl);
+      plr = prefix_penalty_internal(unionR, curl);
+      prl = prefix_penalty_internal(unionL, curr);
+      prr = prefix_penalty_internal(unionR, curr);
+
+      if( pll <= plr && prl >= prr ) {
+	/**
+	 * curl should go to left and curr to right, unless they share
+	 * a non-empty common prefix, in which case we place both curr
+	 * and curl on the same side. Arbitrarily the left one.
+	 */
+	if( pll == plr && prl == prr ) {
+	  gp = greater_prefix_internal(curl, curr);
+	  if( VARSIZE(gp) - VARHDRSZ > 0 ) {
+	    unionL = greater_prefix_internal(unionL, gp);
+	    v->spl_left[v->spl_nleft++] = offl;
+	    v->spl_left[v->spl_nleft++] = offr;
+	    continue;
+	  }
+	}
+	/**
+	 * here pll < plr and prl > prr
+	 */
+	unionL = greater_prefix_internal(unionL, curl);
+	unionR = greater_prefix_internal(unionR, curr);
+	v->spl_left[v->spl_nleft++]   = offl;
+	v->spl_right[v->spl_nright++] = offr;
+      }
+      else if( pll > plr && prl >= prr ) {
+	unionR = greater_prefix_internal(unionR, curr);
+	v->spl_right[v->spl_nright++] = offr;
+      }
+      else if( pll <= plr && prl < prr ) {
+	/**
+	 * Current leftmost entry is added to listL
+	 */
+	unionL = greater_prefix_internal(unionL, curl);
+	v->spl_left[v->spl_nleft++] = offl;
+      }
+      else if( (pll - plr) < (prr - prl) ) {
+	/**
+	 * All entries still in the list go into listL
+	 */
+	for(; offl < maxoff; offl = OffsetNumberNext(offl)) {
+	  curl   = (text *) DatumGetPointer(ent[offl].key);
+	  unionL = greater_prefix_internal(unionL, curl);
+	  v->spl_left[v->spl_nleft++] = offl;
+	}
+      }
+      else {
+	/**
+	 * All entries still in the list go into listR
+	 */
+	for(; offl < maxoff; offl = OffsetNumberNext(offl)) {
+	  curl   = (text *) DatumGetPointer(ent[offl].key);
+	  unionR = greater_prefix_internal(unionR, curl);
+	  v->spl_right[v->spl_nright++] = offl;
+	}
+      }
+    }
+    
+    if( offl == offr ) {
+      curl = (text *) DatumGetPointer(ent[offl].key);
+      pll  = prefix_penalty_internal(unionL, curl);
+      plr  = prefix_penalty_internal(unionR, curl);
+
+      if( pll < plr || (pll == plr && v->spl_nleft < v->spl_nright) ) {
+	for(; offl < maxoff; offl = OffsetNumberNext(offl)) {
+	  curl   = (text *) DatumGetPointer(ent[offl].key);
+	  unionL = greater_prefix_internal(unionL, curl);
+	  v->spl_left[v->spl_nleft++] = offl;
+	}
+      }
+      else {
+	for(; offl < maxoff; offl = OffsetNumberNext(offl)) {
+	  curl   = (text *) DatumGetPointer(ent[offl].key);
+	  unionR = greater_prefix_internal(unionR, curl);
+	  v->spl_right[v->spl_nright++] = offl;
+	}
+      }
     }
 
     v->spl_ldatum = PointerGetDatum(unionL);

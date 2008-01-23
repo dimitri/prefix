@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.4 2008/01/22 17:47:49 dim Exp $
+ * $Id: prefix.c,v 1.5 2008/01/23 17:36:28 dim Exp $
  */
 
 #include <stdio.h>
@@ -170,7 +170,7 @@ float prefix_penalty_internal(text *orig, text *new)
   }
   penalty = (((float)dist) / powf(256, gplen));
 
-#ifdef DEBUG
+#ifdef DEBUG_PENALTY
   elog(NOTICE, "gprefix_penalty_internal(%s, %s) == %d/(256^%d) == %g", 
        DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(orig))),
        DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(new))),
@@ -243,6 +243,204 @@ gprefix_penalty(PG_FUNCTION_ARGS)
 }
 
 /**
+ * prefix picksplit first pass step: presort the SPLITVEC vector by
+ * positionning the elements sharing the non-empty prefix which is the
+ * more frequent in the distribution at the beginning of the vector.
+ *
+ * This will have the effect that the picksplit() implementation will
+ * do a better job, per preliminary tests on not-so random data.
+ */
+struct gprefix_unions
+{
+  text *prefix;     /* a shared prefix */
+  int   n;          /* how many entries begins with this prefix */
+};
+
+
+static inline
+text **prefix_presort(GistEntryVector *list)
+{
+  OffsetNumber maxoff = list->n - FirstOffsetNumber;
+  GISTENTRY *ent = list->vector;
+  text *init = (text *) DatumGetPointer(ent[FirstOffsetNumber].key);
+  text *cur, *gp;
+  int  gplen;
+  bool found;
+
+  struct gprefix_unions max;
+  struct gprefix_unions *unions = (struct gprefix_unions *)
+    palloc((maxoff +2) * sizeof(struct gprefix_unions));
+
+  OffsetNumber unions_it = FirstOffsetNumber; /* unions iterator, and size */
+  OffsetNumber i, u, cur_u;
+
+  int result_it, result_it_maxes = FirstOffsetNumber;
+  text **result = (text **)palloc((maxoff+2) * sizeof(text *));
+
+  unions[unions_it].prefix = init;
+  unions[unions_it].n      = 1;
+  unions_it = OffsetNumberNext(unions_it);
+
+  max.prefix = init;
+  max.n      = 1;
+
+#ifdef DEBUG
+  elog(NOTICE, "prefix_presort: list->n=%d, maxoff=%d", list->n, maxoff);
+#endif
+
+  /**
+   * Prepare a list of prefixes and how many time they are found.
+   */
+  for(i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
+    found = false;
+    cur   = (text *) DatumGetPointer(ent[i].key);
+    
+    for(u = FirstOffsetNumber; u < unions_it; u = OffsetNumberNext(u)) {
+      if( unions[u].n < 1 )
+	continue;
+
+      /**
+       * We'll need the prefix itself, so it's better to call
+       * greater_prefix_internal each time rather than
+       * prefix_contains_internal then when true
+       * greater_prefix_internal.
+       */
+      elog(NOTICE, "PLOP: %d %d %s %s", i, u,
+	   DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(cur))),
+	   DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(unions[u].prefix))));	   
+      gp    = greater_prefix_internal(cur, unions[u].prefix);
+      gplen = VARSIZE(gp) - VARHDRSZ;
+
+      if( gplen  > 0 ) {
+	found = true;
+	/**
+	 * Current list entry share a common prefix with some previous
+	 * analyzed list entry, update the prefix and number.
+	 *
+	 * If gplen == len(unions[u].prefix), we know that
+	 * unions[u].prefix == gp and we can just update unions[u].n,
+	 * else we have to forget about previous prefix entry by
+	 * setting its .n value to zero.
+	 */
+	if( (VARSIZE(unions[u].prefix) - VARHDRSZ) == gplen ) {
+	  unions[u].n += 1;
+	  cur_u = u;
+	}
+	else {
+	  unions[unions_it].prefix = gp;
+	  unions[unions_it].n      = unions[u].n + 1;
+	  cur_u = unions_it;
+
+	  unions[u].n = 0;
+	}
+
+	/**
+	 * We just updated unions, we may have to update max too.
+	 */
+	if( unions[cur_u].n > max.n ) {
+	  max.prefix = unions[cur_u].prefix;
+	  max.n      = unions[cur_u].n;
+	}
+	
+	/**
+	 * break from the unions loop, we're done with it for this
+	 * element.
+	 */
+	unions_it = OffsetNumberNext(unions_it);
+	break;
+      }
+    }
+    /**
+     * We're done with the unions loop, if we didn't find a common
+     * prefix we have to add the current list element to unions
+     */
+    if( !found ) {
+      unions[unions_it].prefix = cur;
+      unions[unions_it].n      = 1;
+      unions_it = OffsetNumberNext(unions_it);
+    }
+  }
+#ifdef DEBUG
+  elog(NOTICE, "prefix_presort: ");
+  for(u = FirstOffsetNumber; u < unions_it; u = OffsetNumberNext(u)) {
+    if( unions[u].n > 0 )
+      elog(NOTICE, " unions[%s]: %d", 
+	   DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(unions[u].prefix))),
+	   unions[u].n);
+  }
+#endif
+
+  /**
+   * We now have a list of common non-empty prefixes found on the list
+   * (unions) and kept the max entry while computing this weighted
+   * unions list.
+   *
+   * Now make up the result by copying max matching elements first,
+   * then the others list entries in their original order. To do this,
+   * we reserve the first result max.n places to the max.prefix
+   * matching elements (see result_it and result_it_maxes).
+   *
+   * result_it_maxes will go from FirstOffsetNumber to max.n included,
+   * and result_it will iterate through the end of the list, that is
+   * from max.n - FirstOffsetNumber + 1 to maxoff.
+   *
+   * [a, b] contains b - a + 1 elements, hence [FirstOffsetNumber,
+   * max.b] contains max.n - FirstOffsetNumber + 1 elements, whatever
+   * FirstOffsetNumber value.
+   */
+
+  if( max.n == list->n ) {
+    /**
+     * A common non-empty prefix is shared by all list entries.
+     */
+    for(i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
+      cur = (text *) DatumGetPointer(ent[i].key);
+      result[i] = cur;
+    }
+    return result;
+  }
+
+  result_it = max.n - FirstOffsetNumber + 1;
+#ifdef DEBUG
+  elog(NOTICE, "prefix_presort: max.n=%d, result_it=%d", max.n, result_it);
+#endif
+
+  for(i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
+    cur = (text *) DatumGetPointer(ent[i].key);
+
+    if( prefix_contains_internal(max.prefix, cur, true) ) {
+      /**
+       * cur has to go in first part of the list, as max.prefix is a
+       * prefix of it.
+       */
+      result[result_it_maxes] = cur;
+      result_it_maxes = OffsetNumberNext(result_it_maxes);
+    }
+    else {
+      /**
+       * cur has to go at next second part position.
+       */
+      result[result_it] = cur;
+      result_it = OffsetNumberNext(result_it);
+    }
+  }
+
+#ifdef DEBUG
+  elog(NOTICE, "prefix_presort: %d..%d/%d", FirstOffsetNumber, i-1, maxoff);
+
+  for(i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
+    elog(NOTICE, " result[%4d] = %s",
+	 i,
+	 DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(result[i]))));
+  }
+#endif
+
+  return result;
+}
+
+
+
+/**
  * prefix picksplit implementation
  *
  * The idea is to consume the SPLITVEC vector by both its start and
@@ -257,6 +455,7 @@ gprefix_penalty(PG_FUNCTION_ARGS)
  * union appears the most in the SPLITVEC vector. Perl test
  * implementation show good results on random test data.
  */
+
 PG_FUNCTION_INFO_V1(gprefix_picksplit);
 Datum
 gprefix_picksplit(PG_FUNCTION_ARGS)
@@ -264,7 +463,7 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
     GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
     OffsetNumber maxoff = entryvec->n - 2;
     GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
-    GISTENTRY *ent = entryvec->vector;
+    /* GISTENTRY *ent = entryvec->vector; */
 
     int	nbytes;
     OffsetNumber offl, offr;
@@ -281,7 +480,10 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
      */
     float pll, plr, prl, prr;
 
-    /* qsort(ent, maxoff, sizeof(text *), bttextcmp); */
+    /**
+     * First pass: sort out the entryvec.
+     */
+    text **sorted = prefix_presort(entryvec);
 
     nbytes = (maxoff + 2) * sizeof(OffsetNumber);
     listL = (OffsetNumber *) palloc(nbytes);
@@ -293,8 +495,8 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
     offl = FirstOffsetNumber;
     offr = maxoff;
 
-    unionL = (text *) DatumGetPointer(ent[offl].key);
-    unionR = (text *) DatumGetPointer(ent[offr].key);
+    unionL = sorted[offl];
+    unionR = sorted[offr];
 
     v->spl_left[v->spl_nleft++]   = offl;
     v->spl_right[v->spl_nright++] = offr;
@@ -302,8 +504,10 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
     v->spl_right = listR;
 
     for(; offl < offr; offl = OffsetNumberNext(offl), offr = OffsetNumberPrev(offr)) {
-      curl = (text *) DatumGetPointer(ent[offl].key);
-      curr = (text *) DatumGetPointer(ent[offr].key);
+      curl = sorted[offl];
+      curr = sorted[offr];
+
+      Assert(curl != NULL && curr != NULL);
 
       pll = prefix_penalty_internal(unionL, curl);
       plr = prefix_penalty_internal(unionR, curl);
@@ -349,7 +553,7 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
 	 * All entries still in the list go into listL
 	 */
 	for(; offl < maxoff; offl = OffsetNumberNext(offl)) {
-	  curl   = (text *) DatumGetPointer(ent[offl].key);
+	  curl   = sorted[offl];
 	  unionL = greater_prefix_internal(unionL, curl);
 	  v->spl_left[v->spl_nleft++] = offl;
 	}
@@ -359,7 +563,7 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
 	 * All entries still in the list go into listR
 	 */
 	for(; offl < maxoff; offl = OffsetNumberNext(offl)) {
-	  curl   = (text *) DatumGetPointer(ent[offl].key);
+	  curl   = sorted[offl];
 	  unionR = greater_prefix_internal(unionR, curl);
 	  v->spl_right[v->spl_nright++] = offl;
 	}
@@ -367,20 +571,20 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
     }
     
     if( offl == offr ) {
-      curl = (text *) DatumGetPointer(ent[offl].key);
+      curl = sorted[offl];
       pll  = prefix_penalty_internal(unionL, curl);
       plr  = prefix_penalty_internal(unionR, curl);
 
       if( pll < plr || (pll == plr && v->spl_nleft < v->spl_nright) ) {
 	for(; offl < maxoff; offl = OffsetNumberNext(offl)) {
-	  curl   = (text *) DatumGetPointer(ent[offl].key);
+	  curl   = sorted[offl];
 	  unionL = greater_prefix_internal(unionL, curl);
 	  v->spl_left[v->spl_nleft++] = offl;
 	}
       }
       else {
 	for(; offl < maxoff; offl = OffsetNumberNext(offl)) {
-	  curl   = (text *) DatumGetPointer(ent[offl].key);
+	  curl   = sorted[offl];
 	  unionR = greater_prefix_internal(unionR, curl);
 	  v->spl_right[v->spl_nright++] = offl;
 	}
@@ -392,7 +596,7 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
 
 #ifdef DEBUG
     elog(NOTICE, "gprefix_picksplit(): %s %d %s %d",
-	   DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(unionL))),
+	 DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(unionL))),
 	 v->spl_nleft,
 	 DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(unionR))),
 	 v->spl_nright);

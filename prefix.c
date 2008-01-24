@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.9 2008/01/24 15:38:25 dim Exp $
+ * $Id: prefix.c,v 1.10 2008/01/24 20:51:49 dim Exp $
  */
 
 #include <stdio.h>
@@ -23,6 +23,7 @@
 #include <math.h>
 
 #define  DEBUG
+#define  DEBUG_PRESORT_GP
 /**
  * We use those DEBUG defines in the code, uncomment them to get very
  * verbose output.
@@ -329,10 +330,6 @@ text **prefix_presort(GistEntryVector *list)
       gp    = greater_prefix_internal(cur, unions[u].prefix);
       gplen = VARSIZE(gp) - VARHDRSZ;
 
-      if(gplen > 0 ) {
-	Assert(prefix_contains_internal(gp, cur, true));
-      }
-
 #ifdef DEBUG_PRESORT_GP
       if(gplen > 0 ) {
 	elog(NOTICE, " prefix_presort():   gplen=%2d, %s @> %s = %s",
@@ -342,6 +339,10 @@ text **prefix_presort(GistEntryVector *list)
 	     (prefix_contains_internal(gp, cur, true) ? "t" : "f"));
       }
 #endif
+
+      if(gplen > 0 ) {
+	Assert(prefix_contains_internal(gp, cur, true));
+      }
 
       if( gplen > 0 ) {
 	/**

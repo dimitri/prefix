@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.8 2008/01/24 12:30:39 dim Exp $
+ * $Id: prefix.c,v 1.9 2008/01/24 15:38:25 dim Exp $
  */
 
 #include <stdio.h>
@@ -23,6 +23,17 @@
 #include <math.h>
 
 #define  DEBUG
+/**
+ * We use those DEBUG defines in the code, uncomment them to get very
+ * verbose output.
+ *
+#define  DEBUG_UNION
+#define  DEBUG_PENALTY
+#define  DEBUG_PRESORT_GP
+#define  DEBUG_PRESORT_MAX
+#define  DEBUG_PRESORT_UNIONS
+#define  DEBUG_PRESORT_RESULT
+*/
 
 PG_MODULE_MAGIC;
 
@@ -264,18 +275,25 @@ text **prefix_presort(GistEntryVector *list)
   OffsetNumber maxoff = list->n - 1;
   text *init = (text *) DatumGetPointer(ent[FirstOffsetNumber].key);
   text *cur, *gp;
-  int  gplen, debug_count;
+  int  gplen;
   bool found;
 
   struct gprefix_unions max;
   struct gprefix_unions *unions = (struct gprefix_unions *)
-    palloc((maxoff +2) * sizeof(struct gprefix_unions));
+    palloc((maxoff+1) * sizeof(struct gprefix_unions));
 
-  OffsetNumber unions_it = FirstOffsetNumber; /* unions iterator, and size */
+  OffsetNumber unions_it = FirstOffsetNumber; /* unions iterator */
   OffsetNumber i, u;
 
   int result_it, result_it_maxes = FirstOffsetNumber;
-  text **result = (text **)palloc((maxoff+2) * sizeof(text *));
+  text **result = (text **)palloc((maxoff+1) * sizeof(text *));
+
+#ifdef DEBUG_PRESORT_MAX
+  int debug_count;
+#endif
+#ifdef DEBUG_PRESORT_UNIONS
+  int debug_count;
+#endif
 
   unions[unions_it].prefix = init;
   unions[unions_it].n      = 1;
@@ -284,10 +302,17 @@ text **prefix_presort(GistEntryVector *list)
   max.prefix = init;
   max.n      = 1;
 
+#ifdef DEBUG_PRESORT_MAX
+  elog(NOTICE, " prefix_presort():   init=%s max.prefix=%s max.n=%d",
+       DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(init))),
+       DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(max.prefix))),
+       max.n);
+#endif
+
   /**
    * Prepare a list of prefixes and how many time they are found.
    */
-  for(i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
+  for(i = OffsetNumberNext(FirstOffsetNumber); i <= maxoff; i = OffsetNumberNext(i)) {
     found = false;
     cur   = (text *) DatumGetPointer(ent[i].key);
 
@@ -304,7 +329,21 @@ text **prefix_presort(GistEntryVector *list)
       gp    = greater_prefix_internal(cur, unions[u].prefix);
       gplen = VARSIZE(gp) - VARHDRSZ;
 
-      if( gplen  > 0 ) {
+      if(gplen > 0 ) {
+	Assert(prefix_contains_internal(gp, cur, true));
+      }
+
+#ifdef DEBUG_PRESORT_GP
+      if(gplen > 0 ) {
+	elog(NOTICE, " prefix_presort():   gplen=%2d, %s @> %s = %s",
+	     gplen,
+	     DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(gp))),
+	     DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(cur))),
+	     (prefix_contains_internal(gp, cur, true) ? "t" : "f"));
+      }
+#endif
+
+      if( gplen > 0 ) {
 	/**
 	 * Current list entry share a common prefix with some previous
 	 * analyzed list entry, update the prefix and number.
@@ -319,6 +358,11 @@ text **prefix_presort(GistEntryVector *list)
 	if( unions[u].n > max.n ) {
 	  max.prefix = unions[u].prefix;
 	  max.n      = unions[u].n;
+#ifdef DEBUG_PRESORT_MAX
+  elog(NOTICE, " prefix_presort():   max.prefix=%s max.n=%d",
+       DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(max.prefix))),
+       max.n);	  
+#endif
 	}
 	
 	/**
@@ -338,7 +382,7 @@ text **prefix_presort(GistEntryVector *list)
       unions_it = OffsetNumberNext(unions_it);
     }
   }
-#ifdef DEBUG
+#ifdef DEBUG_PRESORT_UNIONS
   debug_count = 0;
   for(u = FirstOffsetNumber; u < unions_it; u = OffsetNumberNext(u)) {
     debug_count += unions[u].n;
@@ -347,9 +391,19 @@ text **prefix_presort(GistEntryVector *list)
 	 unions[u].n);
   }
   elog(NOTICE, " prefix_presort():   total: %d", debug_count);
-#else
-  /* Avoid a useless compiler complaint */
-  (void *) debug_count;
+#endif
+
+#ifdef DEBUG_PRESORT_MAX
+  debug_count = 0;
+  for(i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
+    cur   = (text *) DatumGetPointer(ent[i].key);
+
+    if( prefix_contains_internal(max.prefix, cur, true) )
+      debug_count++;
+  }
+  elog(NOTICE, " prefix_presort():   max.prefix %s @> %d entries",
+       DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(max.prefix))),
+       debug_count);
 #endif
 
   /**
@@ -357,20 +411,9 @@ text **prefix_presort(GistEntryVector *list)
    * (unions) and kept the max entry while computing this weighted
    * unions list.
    *
-   * Now make up the result by copying max matching elements first,
-   * then the others list entries in their original order. To do this,
-   * we reserve the first result max.n places to the max.prefix
-   * matching elements (see result_it and result_it_maxes).
-   *
-   * result_it_maxes will go from FirstOffsetNumber to max.n included,
-   * and result_it will iterate through the end of the list, that is
-   * from max.n - FirstOffsetNumber + 1 to maxoff.
-   *
-   * [a, b] contains b - a + 1 elements, hence [FirstOffsetNumber,
-   * max.b] contains max.n - FirstOffsetNumber + 1 elements, whatever
-   * FirstOffsetNumber value.
+   * Simple case : a common non-empty prefix is shared by all list
+   * entries.
    */
-
   if( max.n == list->n ) {
     /**
      * A common non-empty prefix is shared by all list entries.
@@ -382,16 +425,48 @@ text **prefix_presort(GistEntryVector *list)
     return result;
   }
 
-  result_it = max.n - FirstOffsetNumber + 1;
+  /**
+   * If we arrive here, we now have to make up the result by copying
+   * max matching elements first, then the others list entries in
+   * their original order. To do this, we reserve the first result
+   * max.n places to the max.prefix matching elements (see result_it
+   * and result_it_maxes).
+   *
+   * result_it_maxes will go from FirstOffsetNumber to max.n included,
+   * and result_it will iterate through the end of the list, that is
+   * from max.n - FirstOffsetNumber + 1 to maxoff.
+   *
+   * [a, b] contains b - a + 1 elements, hence
+   * [FirstOffsetNumber, max.n] contains max.n - FirstOffsetNumber + 1
+   * elements, whatever FirstOffsetNumber value.
+   */
+  result_it_maxes = FirstOffsetNumber;
+  result_it       = OffsetNumberNext(max.n - FirstOffsetNumber + 1);
+
+#ifdef DEBUG_PRESORT_MAX
+  elog(NOTICE, " prefix_presort():   max.prefix=%s max.n=%d result_it=%d",
+       DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(max.prefix))),
+       max.n, result_it);
+#endif
 
   for(i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
     cur = (text *) DatumGetPointer(ent[i].key);
+
+#ifdef DEBUG_PRESORT_RESULT
+    elog(NOTICE, " prefix_presort():   ent[%4d] = %s <@ %s = %s => result[%4d]", 
+	 i,
+	 DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(cur))),
+	 DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(max.prefix))),
+	 (prefix_contains_internal(max.prefix, cur, true) ? "t" : "f"),
+	 (prefix_contains_internal(max.prefix, cur, true) ? result_it_maxes : result_it));
+#endif
 
     if( prefix_contains_internal(max.prefix, cur, true) ) {
       /**
        * cur has to go in first part of the list, as max.prefix is a
        * prefix of it.
        */
+      Assert(result_it_maxes <= max.n);
       result[result_it_maxes] = cur;
       result_it_maxes = OffsetNumberNext(result_it_maxes);
     }
@@ -399,10 +474,15 @@ text **prefix_presort(GistEntryVector *list)
       /**
        * cur has to go at next second part position.
        */
+      Assert(result_it <= maxoff);
       result[result_it] = cur;
       result_it = OffsetNumberNext(result_it);
     }
   }
+#ifdef DEBUG_PRESORT_RESULT
+  elog(NOTICE, " prefix_presort():   result_it_maxes=%4d result_it=%4d list->n=%d maxoff=%d",
+       result_it_maxes, result_it, list->n, maxoff);
+#endif
   return result;
 }
 

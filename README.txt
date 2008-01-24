@@ -1,8 +1,8 @@
 = Prefix Opclass
 
-This module is written by Dimitri Fontaine <dim@tapoueh.org> with a
-great amount of help from AndrewSN, who was the one advising for a
-'GiST opclass' to solve the prefix matching problem.
+This module is written by Dimitri Fontaine with a great amount of help
+from AndrewSN, who was the one advising for a 'GiST opclass' to solve
+the prefix matching problem.
 
 == Presentation
 

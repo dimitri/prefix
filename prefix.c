@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.5 2008/01/23 17:36:28 dim Exp $
+ * $Id: prefix.c,v 1.6 2008/01/24 10:18:36 dim Exp $
  */
 
 #include <stdio.h>
@@ -260,8 +260,8 @@ struct gprefix_unions
 static inline
 text **prefix_presort(GistEntryVector *list)
 {
-  OffsetNumber maxoff = list->n - FirstOffsetNumber;
-  GISTENTRY *ent = list->vector;
+  GISTENTRY *ent      = list->vector;
+  OffsetNumber maxoff = list->n - 1;
   text *init = (text *) DatumGetPointer(ent[FirstOffsetNumber].key);
   text *cur, *gp;
   int  gplen;
@@ -284,17 +284,13 @@ text **prefix_presort(GistEntryVector *list)
   max.prefix = init;
   max.n      = 1;
 
-#ifdef DEBUG
-  elog(NOTICE, "prefix_presort: list->n=%d, maxoff=%d", list->n, maxoff);
-#endif
-
   /**
    * Prepare a list of prefixes and how many time they are found.
    */
   for(i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
     found = false;
     cur   = (text *) DatumGetPointer(ent[i].key);
-    
+
     for(u = FirstOffsetNumber; u < unions_it; u = OffsetNumberNext(u)) {
       if( unions[u].n < 1 )
 	continue;
@@ -305,9 +301,6 @@ text **prefix_presort(GistEntryVector *list)
        * prefix_contains_internal then when true
        * greater_prefix_internal.
        */
-      elog(NOTICE, "PLOP: %d %d %s %s", i, u,
-	   DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(cur))),
-	   DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(unions[u].prefix))));	   
       gp    = greater_prefix_internal(cur, unions[u].prefix);
       gplen = VARSIZE(gp) - VARHDRSZ;
 
@@ -331,6 +324,10 @@ text **prefix_presort(GistEntryVector *list)
 	  unions[unions_it].n      = unions[u].n + 1;
 	  cur_u = unions_it;
 
+	  /**
+	   * Reserve next unions entry and reset the current one.
+	   */
+	  unions_it = OffsetNumberNext(unions_it);
 	  unions[u].n = 0;
 	}
 
@@ -346,7 +343,6 @@ text **prefix_presort(GistEntryVector *list)
 	 * break from the unions loop, we're done with it for this
 	 * element.
 	 */
-	unions_it = OffsetNumberNext(unions_it);
 	break;
       }
     }
@@ -424,17 +420,6 @@ text **prefix_presort(GistEntryVector *list)
       result_it = OffsetNumberNext(result_it);
     }
   }
-
-#ifdef DEBUG
-  elog(NOTICE, "prefix_presort: %d..%d/%d", FirstOffsetNumber, i-1, maxoff);
-
-  for(i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
-    elog(NOTICE, " result[%4d] = %s",
-	 i,
-	 DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(result[i]))));
-  }
-#endif
-
   return result;
 }
 
@@ -595,11 +580,10 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
     v->spl_rdatum = PointerGetDatum(unionR);
 
 #ifdef DEBUG
-    elog(NOTICE, "gprefix_picksplit(): %s %d %s %d",
+    elog(NOTICE, "gprefix_picksplit(): entryvec->n=%d maxoff=%d l=%d r=%d l+r=%d unionL=%s unionR=%s",
+	 entryvec->n, maxoff, v->spl_nleft, v->spl_nright, v->spl_nleft+v->spl_nright,
 	 DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(unionL))),
-	 v->spl_nleft,
-	 DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(unionR))),
-	 v->spl_nright);
+	 DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(unionR))));
 #endif
 	
     PG_RETURN_POINTER(v);
@@ -627,7 +611,7 @@ gprefix_union(PG_FUNCTION_ARGS)
        * We need to return a palloc()ed copy of ent[0].key (==tmp)
        */
       out = DatumGetTextPCopy(PointerGetDatum(tmp));
-#ifdef DEBUG
+#ifdef DEBUG_UNION
       elog(NOTICE, "gprefix_union(%s) == %s",
 	   DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(tmp))),
 	   DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(out))));
@@ -638,7 +622,7 @@ gprefix_union(PG_FUNCTION_ARGS)
     for (i = 1; i < numranges; i++) {
       tmp = (text *) DatumGetPointer(ent[i].key);
       gp = greater_prefix_internal(out, tmp);
-#ifdef DEBUG
+#ifdef DEBUG_UNION
       elog(NOTICE, "gprefix_union: gp(%s, %s) == %s", 
 	   DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(out))),
 	   DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(tmp))),
@@ -647,7 +631,7 @@ gprefix_union(PG_FUNCTION_ARGS)
       out = gp;
     }
 
-#ifdef DEBUG
+#ifdef DEBUG_UNION
     elog(NOTICE, "gprefix_union: %s", 
 	 DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(out))));
 #endif

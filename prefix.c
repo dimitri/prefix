@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.6 2008/01/24 10:18:36 dim Exp $
+ * $Id: prefix.c,v 1.7 2008/01/24 10:31:37 dim Exp $
  */
 
 #include <stdio.h>
@@ -272,7 +272,7 @@ text **prefix_presort(GistEntryVector *list)
     palloc((maxoff +2) * sizeof(struct gprefix_unions));
 
   OffsetNumber unions_it = FirstOffsetNumber; /* unions iterator, and size */
-  OffsetNumber i, u, cur_u;
+  OffsetNumber i, u;
 
   int result_it, result_it_maxes = FirstOffsetNumber;
   text **result = (text **)palloc((maxoff+2) * sizeof(text *));
@@ -305,38 +305,20 @@ text **prefix_presort(GistEntryVector *list)
       gplen = VARSIZE(gp) - VARHDRSZ;
 
       if( gplen  > 0 ) {
-	found = true;
 	/**
 	 * Current list entry share a common prefix with some previous
 	 * analyzed list entry, update the prefix and number.
-	 *
-	 * If gplen == len(unions[u].prefix), we know that
-	 * unions[u].prefix == gp and we can just update unions[u].n,
-	 * else we have to forget about previous prefix entry by
-	 * setting its .n value to zero.
 	 */
-	if( (VARSIZE(unions[u].prefix) - VARHDRSZ) == gplen ) {
-	  unions[u].n += 1;
-	  cur_u = u;
-	}
-	else {
-	  unions[unions_it].prefix = gp;
-	  unions[unions_it].n      = unions[u].n + 1;
-	  cur_u = unions_it;
-
-	  /**
-	   * Reserve next unions entry and reset the current one.
-	   */
-	  unions_it = OffsetNumberNext(unions_it);
-	  unions[u].n = 0;
-	}
+	found = true;
+	unions[u].n     += 1;
+	unions[u].prefix = gp;
 
 	/**
 	 * We just updated unions, we may have to update max too.
 	 */
-	if( unions[cur_u].n > max.n ) {
-	  max.prefix = unions[cur_u].prefix;
-	  max.n      = unions[cur_u].n;
+	if( unions[u].n > max.n ) {
+	  max.prefix = unions[u].prefix;
+	  max.n      = unions[u].n;
 	}
 	
 	/**
@@ -357,10 +339,9 @@ text **prefix_presort(GistEntryVector *list)
     }
   }
 #ifdef DEBUG
-  elog(NOTICE, "prefix_presort: ");
   for(u = FirstOffsetNumber; u < unions_it; u = OffsetNumberNext(u)) {
     if( unions[u].n > 0 )
-      elog(NOTICE, " unions[%s]: %d", 
+      elog(NOTICE, " prefix_presort:     unions[%s] = %d", 
 	   DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(unions[u].prefix))),
 	   unions[u].n);
   }
@@ -580,7 +561,7 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
     v->spl_rdatum = PointerGetDatum(unionR);
 
 #ifdef DEBUG
-    elog(NOTICE, "gprefix_picksplit(): entryvec->n=%d maxoff=%d l=%d r=%d l+r=%d unionL=%s unionR=%s",
+    elog(NOTICE, "gprefix_picksplit(): entryvec->n=%4d maxoff=%4d l=%4d r=%4d l+r=%4d unionL=%s unionR=%s",
 	 entryvec->n, maxoff, v->spl_nleft, v->spl_nright, v->spl_nleft+v->spl_nright,
 	 DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(unionL))),
 	 DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(unionR))));

@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.7 2008/01/24 10:31:37 dim Exp $
+ * $Id: prefix.c,v 1.8 2008/01/24 12:30:39 dim Exp $
  */
 
 #include <stdio.h>
@@ -264,7 +264,7 @@ text **prefix_presort(GistEntryVector *list)
   OffsetNumber maxoff = list->n - 1;
   text *init = (text *) DatumGetPointer(ent[FirstOffsetNumber].key);
   text *cur, *gp;
-  int  gplen;
+  int  gplen, debug_count;
   bool found;
 
   struct gprefix_unions max;
@@ -339,12 +339,17 @@ text **prefix_presort(GistEntryVector *list)
     }
   }
 #ifdef DEBUG
+  debug_count = 0;
   for(u = FirstOffsetNumber; u < unions_it; u = OffsetNumberNext(u)) {
-    if( unions[u].n > 0 )
-      elog(NOTICE, " prefix_presort:     unions[%s] = %d", 
-	   DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(unions[u].prefix))),
-	   unions[u].n);
+    debug_count += unions[u].n;
+    elog(NOTICE, " prefix_presort():   unions[%s] = %d", 
+	 DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(unions[u].prefix))),
+	 unions[u].n);
   }
+  elog(NOTICE, " prefix_presort():   total: %d", debug_count);
+#else
+  /* Avoid a useless compiler complaint */
+  (void *) debug_count;
 #endif
 
   /**
@@ -378,9 +383,6 @@ text **prefix_presort(GistEntryVector *list)
   }
 
   result_it = max.n - FirstOffsetNumber + 1;
-#ifdef DEBUG
-  elog(NOTICE, "prefix_presort: max.n=%d, result_it=%d", max.n, result_it);
-#endif
 
   for(i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
     cur = (text *) DatumGetPointer(ent[i].key);
@@ -411,7 +413,8 @@ text **prefix_presort(GistEntryVector *list)
  *
  * The idea is to consume the SPLITVEC vector by both its start and
  * end, inserting one or two items at a time depending on relative
- * penalty() with current ends of new vectors.
+ * penalty() with current ends of new vectors, or even all remaining
+ * items at once.
  *
  * Idea and perl test script per AndreSN with some modifications by me
  * (Dimitri Fontaine).
@@ -427,9 +430,8 @@ Datum
 gprefix_picksplit(PG_FUNCTION_ARGS)
 {
     GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
-    OffsetNumber maxoff = entryvec->n - 2;
+    OffsetNumber maxoff = entryvec->n - 1;
     GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
-    /* GISTENTRY *ent = entryvec->vector; */
 
     int	nbytes;
     OffsetNumber offl, offr;
@@ -451,7 +453,7 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
      */
     text **sorted = prefix_presort(entryvec);
 
-    nbytes = (maxoff + 2) * sizeof(OffsetNumber);
+    nbytes = (maxoff + 1) * sizeof(OffsetNumber);
     listL = (OffsetNumber *) palloc(nbytes);
     listR = (OffsetNumber *) palloc(nbytes);
     v->spl_left  = listL;
@@ -468,6 +470,9 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
     v->spl_right[v->spl_nright++] = offr;
     v->spl_left  = listL;
     v->spl_right = listR;
+
+    offl = OffsetNumberNext(offl);
+    offr = OffsetNumberPrev(offr);
 
     for(; offl < offr; offl = OffsetNumberNext(offl), offr = OffsetNumberPrev(offr)) {
       curl = sorted[offl];
@@ -496,7 +501,7 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
 	  }
 	}
 	/**
-	 * here pll < plr and prl > prr
+	 * here pll <= plr and prl >= prr and (pll != plr || prl != prr)
 	 */
 	unionL = greater_prefix_internal(unionL, curl);
 	unionR = greater_prefix_internal(unionR, curr);
@@ -518,7 +523,7 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
 	/**
 	 * All entries still in the list go into listL
 	 */
-	for(; offl < maxoff; offl = OffsetNumberNext(offl)) {
+	for(; offl <= maxoff; offl = OffsetNumberNext(offl)) {
 	  curl   = sorted[offl];
 	  unionL = greater_prefix_internal(unionL, curl);
 	  v->spl_left[v->spl_nleft++] = offl;
@@ -528,37 +533,44 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
 	/**
 	 * All entries still in the list go into listR
 	 */
-	for(; offl < maxoff; offl = OffsetNumberNext(offl)) {
+	for(; offl <= maxoff; offl = OffsetNumberNext(offl)) {
 	  curl   = sorted[offl];
 	  unionR = greater_prefix_internal(unionR, curl);
 	  v->spl_right[v->spl_nright++] = offl;
 	}
       }
     }
-    
+
+    /**
+     * The for loop continues while offl < offr. If maxoff is odd, it
+     * could be that there's a last value to process. Here we choose
+     * where to add it.
+     */
     if( offl == offr ) {
       curl = sorted[offl];
       pll  = prefix_penalty_internal(unionL, curl);
       plr  = prefix_penalty_internal(unionR, curl);
 
       if( pll < plr || (pll == plr && v->spl_nleft < v->spl_nright) ) {
-	for(; offl < maxoff; offl = OffsetNumberNext(offl)) {
-	  curl   = sorted[offl];
-	  unionL = greater_prefix_internal(unionL, curl);
-	  v->spl_left[v->spl_nleft++] = offl;
-	}
+	curl   = sorted[offl];
+	unionL = greater_prefix_internal(unionL, curl);
+	v->spl_left[v->spl_nleft++] = offl;
       }
       else {
-	for(; offl < maxoff; offl = OffsetNumberNext(offl)) {
-	  curl   = sorted[offl];
-	  unionR = greater_prefix_internal(unionR, curl);
-	  v->spl_right[v->spl_nright++] = offl;
-	}
+	curl   = sorted[offl];
+	unionR = greater_prefix_internal(unionR, curl);
+	v->spl_right[v->spl_nright++] = offl;
       }
     }
 
     v->spl_ldatum = PointerGetDatum(unionL);
     v->spl_rdatum = PointerGetDatum(unionR);
+
+    /**
+     * All read entries (maxoff) should have make it to the
+     * GIST_SPLITVEC return value.
+     */
+    Assert(maxoff = v->spl_nleft+v->spl_nright);
 
 #ifdef DEBUG
     elog(NOTICE, "gprefix_picksplit(): entryvec->n=%4d maxoff=%4d l=%4d r=%4d l+r=%4d unionL=%s unionR=%s",

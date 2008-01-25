@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.10 2008/01/24 20:51:49 dim Exp $
+ * $Id: prefix.c,v 1.11 2008/01/25 19:56:55 dim Exp $
  */
 
 #include <stdio.h>
@@ -39,6 +39,22 @@
 PG_MODULE_MAGIC;
 
 /**
+ * This code has only been tested with PostgreSQL 8.2 and 8.3
+ */
+#if PREFIX_PGVER / 1000 != 8002 && PREFIX_PGVER / 1000 != 8003
+#error "Unknown or unsupported postgresql version"
+#endif
+
+/**
+ * Define our own varlena size macro depending on PGVER
+ */
+#if PREFIX_PGVER / 1000 == 8002
+#define PREFIX_VARSIZE(x) (VARSIZE(x) - VARHDRSZ)
+#else
+#define PREFIX_VARSIZE(x) (VARSIZE_ANY_EXHDR(x))
+#endif
+
+/**
  * - Operator prefix @> query and query <@ prefix
  * - greater_prefix, exposed as a func and an aggregate
  * - prefix_penalty, exposed for testing purpose
@@ -59,7 +75,6 @@ Datum gprefix_picksplit(PG_FUNCTION_ARGS);
 Datum gprefix_union(PG_FUNCTION_ARGS);
 Datum gprefix_same(PG_FUNCTION_ARGS);
 
-
 /**
  * prefix opclass only provides 1 operator, @>
  */
@@ -73,8 +88,8 @@ bool prefix_contains_internal(text *prefix, text *query, bool eqval)
 			  PointerGetDatum(query)) )
     return eqval;
 
-  plen = VARSIZE(prefix) - VARHDRSZ;
-  qlen = VARSIZE(query)  - VARHDRSZ;
+  plen = PREFIX_VARSIZE(prefix);
+  qlen = PREFIX_VARSIZE(query);
 
   if(qlen < plen )
     return false;
@@ -113,8 +128,8 @@ static inline
 text *greater_prefix_internal(text *a, text *b)
 {
   int i    = 0;
-  int la   = VARSIZE(a) - VARHDRSZ;
-  int lb   = VARSIZE(b) - VARHDRSZ;
+  int la   = PREFIX_VARSIZE(a);
+  int lb   = PREFIX_VARSIZE(b);
   char *ca = VARDATA(a);
   char *cb = VARDATA(b);
 
@@ -163,10 +178,10 @@ float prefix_penalty_internal(text *orig, text *new)
   text *gp;
   int  nlen, olen, gplen, dist = 0;
 
-  olen  = VARSIZE(orig) - VARHDRSZ;
-  nlen  = VARSIZE(new)  - VARHDRSZ;
+  olen  = PREFIX_VARSIZE(orig);
+  nlen  = PREFIX_VARSIZE(new);
   gp    = greater_prefix_internal(orig, new);
-  gplen = VARSIZE(gp) - VARHDRSZ;
+  gplen = PREFIX_VARSIZE(gp);
 
   /**
    * greater_prefix length is orig length only if orig == gp
@@ -328,10 +343,10 @@ text **prefix_presort(GistEntryVector *list)
        * greater_prefix_internal.
        */
       gp    = greater_prefix_internal(cur, unions[u].prefix);
-      gplen = VARSIZE(gp) - VARHDRSZ;
+      gplen = PREFIX_VARSIZE(gp);
 
 #ifdef DEBUG_PRESORT_GP
-      if(gplen > 0 ) {
+      if( gplen > 0 ) {
 	elog(NOTICE, " prefix_presort():   gplen=%2d, %s @> %s = %s",
 	     gplen,
 	     DatumGetCString(DirectFunctionCall1(textout,PointerGetDatum(gp))),
@@ -340,7 +355,7 @@ text **prefix_presort(GistEntryVector *list)
       }
 #endif
 
-      if(gplen > 0 ) {
+      if( gplen > 0 ) {
 	Assert(prefix_contains_internal(gp, cur, true));
       }
 
@@ -574,7 +589,7 @@ gprefix_picksplit(PG_FUNCTION_ARGS)
 	 */
 	if( pll == plr && prl == prr ) {
 	  gp = greater_prefix_internal(curl, curr);
-	  if( VARSIZE(gp) - VARHDRSZ > 0 ) {
+	  if( PREFIX_VARSIZE(gp) > 0 ) {
 	    unionL = greater_prefix_internal(unionL, gp);
 	    v->spl_left[v->spl_nleft++] = offl;
 	    v->spl_left[v->spl_nleft++] = offr;

@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.11 2008/01/25 19:56:55 dim Exp $
+ * $Id: prefix.c,v 1.12 2008/01/25 21:19:05 dim Exp $
  */
 
 #include <stdio.h>
@@ -49,9 +49,13 @@ PG_MODULE_MAGIC;
  * Define our own varlena size macro depending on PGVER
  */
 #if PREFIX_PGVER / 1000 == 8002
-#define PREFIX_VARSIZE(x) (VARSIZE(x) - VARHDRSZ)
+#define PREFIX_VARSIZE(x)        (VARSIZE(x) - VARHDRSZ)
+#define PREFIX_VARDATA(x)        (VARDATA(x))
+#define PREFIX_PG_GETARG_TEXT(x) (PG_GETARG_TEXT_P(x))
 #else
-#define PREFIX_VARSIZE(x) (VARSIZE_ANY_EXHDR(x))
+#define PREFIX_VARSIZE(x)        (VARSIZE_ANY_EXHDR(x))
+#define PREFIX_VARDATA(x)        (VARDATA_ANY(x))
+#define PREFIX_PG_GETARG_TEXT(x) (PG_GETARG_TEXT_PP(x))
 #endif
 
 /**
@@ -94,7 +98,7 @@ bool prefix_contains_internal(text *prefix, text *query, bool eqval)
   if(qlen < plen )
     return false;
 
-  return memcmp(VARDATA(prefix), VARDATA(query), plen) == 0;
+  return memcmp(PREFIX_VARDATA(prefix), PREFIX_VARDATA(query), plen) == 0;
 }
 
 /**
@@ -104,9 +108,9 @@ PG_FUNCTION_INFO_V1(prefix_contains);
 Datum
 prefix_contains(PG_FUNCTION_ARGS)
 {
-    PG_RETURN_BOOL( prefix_contains_internal(PG_GETARG_TEXT_P(0),
-					     PG_GETARG_TEXT_P(1),
-					     TRUE) );
+  PG_RETURN_BOOL( prefix_contains_internal(PREFIX_PG_GETARG_TEXT(0),
+					   PREFIX_PG_GETARG_TEXT(1),
+					   true) );
 }
 
 /**
@@ -116,8 +120,8 @@ PG_FUNCTION_INFO_V1(prefix_contained_by);
 Datum
 prefix_contained_by(PG_FUNCTION_ARGS)
 {
-    PG_RETURN_BOOL( prefix_contains_internal(PG_GETARG_TEXT_P(1),
-					     PG_GETARG_TEXT_P(0),
+    PG_RETURN_BOOL( prefix_contains_internal(PREFIX_PG_GETARG_TEXT(1),
+					     PREFIX_PG_GETARG_TEXT(0),
 					     TRUE) );
 }
 
@@ -130,8 +134,8 @@ text *greater_prefix_internal(text *a, text *b)
   int i    = 0;
   int la   = PREFIX_VARSIZE(a);
   int lb   = PREFIX_VARSIZE(b);
-  char *ca = VARDATA(a);
-  char *cb = VARDATA(b);
+  char *ca = PREFIX_VARDATA(a);
+  char *cb = PREFIX_VARDATA(b);
 
   for(i=0; i<la && i<lb && ca[i] == cb[i]; i++);
   
@@ -147,8 +151,8 @@ Datum
 greater_prefix(PG_FUNCTION_ARGS)
 {
 
-  PG_RETURN_POINTER( greater_prefix_internal(PG_GETARG_TEXT_P(0),
-					    PG_GETARG_TEXT_P(1)) );
+  PG_RETURN_POINTER( greater_prefix_internal(PREFIX_PG_GETARG_TEXT(0),
+					     PREFIX_PG_GETARG_TEXT(1)) );
 }
 
 /**
@@ -191,8 +195,8 @@ float prefix_penalty_internal(text *orig, text *new)
 
   dist = 1;
   if( nlen == olen ) {
-    char *o = VARDATA(orig);
-    char *n = VARDATA(new);
+    char *o = PREFIX_VARDATA(orig);
+    char *n = PREFIX_VARDATA(new);
     dist    = abs((int)o[olen-1] - (int)n[nlen-1]);
   }
   penalty = (((float)dist) / powf(256, gplen));
@@ -214,8 +218,8 @@ PG_FUNCTION_INFO_V1(prefix_penalty);
 Datum
 prefix_penalty(PG_FUNCTION_ARGS)
 {
-  float penalty = prefix_penalty_internal(PG_GETARG_TEXT_P(0),
-					  PG_GETARG_TEXT_P(1));
+  float penalty = prefix_penalty_internal(PREFIX_PG_GETARG_TEXT(0),
+					  PREFIX_PG_GETARG_TEXT(1));
 
   PG_RETURN_FLOAT4(penalty);
 }

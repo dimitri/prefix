@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.12 2008/01/25 21:19:05 dim Exp $
+ * $Id: prefix.c,v 1.13 2008/02/28 15:31:37 dim Exp $
  */
 
 #include <stdio.h>
@@ -41,14 +41,14 @@ PG_MODULE_MAGIC;
 /**
  * This code has only been tested with PostgreSQL 8.2 and 8.3
  */
-#if PREFIX_PGVER / 1000 != 8002 && PREFIX_PGVER / 1000 != 8003
+#if PG_VERSION_NUM / 100 != 802 && PG_VERSION_NUM / 100 != 803
 #error "Unknown or unsupported postgresql version"
 #endif
 
 /**
  * Define our own varlena size macro depending on PGVER
  */
-#if PREFIX_PGVER / 1000 == 8002
+#if PG_VERSION_NUM / 100 == 802
 #define PREFIX_VARSIZE(x)        (VARSIZE(x) - VARHDRSZ)
 #define PREFIX_VARDATA(x)        (VARDATA(x))
 #define PREFIX_PG_GETARG_TEXT(x) (PG_GETARG_TEXT_P(x))

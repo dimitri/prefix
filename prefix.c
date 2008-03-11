@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.13 2008/02/28 15:31:37 dim Exp $
+ * $Id: prefix.c,v 1.14 2008/03/11 17:25:36 dim Exp $
  */
 
 #include <stdio.h>
@@ -23,7 +23,6 @@
 #include <math.h>
 
 #define  DEBUG
-#define  DEBUG_PRESORT_GP
 /**
  * We use those DEBUG defines in the code, uncomment them to get very
  * verbose output.
@@ -52,11 +51,249 @@ PG_MODULE_MAGIC;
 #define PREFIX_VARSIZE(x)        (VARSIZE(x) - VARHDRSZ)
 #define PREFIX_VARDATA(x)        (VARDATA(x))
 #define PREFIX_PG_GETARG_TEXT(x) (PG_GETARG_TEXT_P(x))
+#define PREFIX_SET_VARSIZE(p, s) (VARATT_SIZEP(p) = s + VARHDRSZ)
+
 #else
 #define PREFIX_VARSIZE(x)        (VARSIZE_ANY_EXHDR(x))
 #define PREFIX_VARDATA(x)        (VARDATA_ANY(x))
 #define PREFIX_PG_GETARG_TEXT(x) (PG_GETARG_TEXT_PP(x))
+#define PREFIX_SET_VARSIZE(p, s) (SET_VARSIZE(p, s))
 #endif
+
+/**
+ * prefix_range datatype, varlena structure
+ */
+typedef struct {
+  char first;
+  int  last;
+  char prefix[1]; /* this is a varlena structure, data follows */
+} prefix_range;
+
+enum pr_delimiters_t {
+  PR_ESCAPE = '\\',
+  PR_OPEN   = '[',
+  PR_CLOSE  = ']',
+  PR_SEP    = '-'
+} pr_delimiters;
+
+/**
+ * prefix_range function and input/output function
+ */
+Datum prefix_range_in(PG_FUNCTION_ARGS);
+Datum prefix_range_out(PG_FUNCTION_ARGS);
+/*
+Datum prefix_range_recv(PG_FUNCTION_ARGS);
+Datum prefix_range_send(PG_FUNCTION_ARGS);
+Datum prefix_range_cast_to_text(PG_FUNCTION_ARGS);
+Datum prefix_range_cast_from_text(PG_FUNCTION_ARGS);
+Datum prefix_range_eq(PG_FUNCTION_ARGS);
+Datum prefix_range_neq(PG_FUNCTION_ARGS);
+Datum prefix_range_overlaps(PG_FUNCTION_ARGS);
+Datum prefix_range_contains(PG_FUNCTION_ARGS);
+Datum prefix_range_contains_strict(PG_FUNCTION_ARGS);
+Datum prefix_range_contained_by(PG_FUNCTION_ARGS);
+Datum prefix_range_contained_by_strict(PG_FUNCTION_ARGS);
+Datum prefix_range_union(PG_FUNCTION_ARGS);
+Datum prefix_range_inter(PG_FUNCTION_ARGS);
+*/
+
+#define DatumGetPrefixRange(X)	          ((prefix_range *) DatumGetPointer(X))
+#define PrefixRangeGetDatum(X)	          PointerGetDatum(X)
+#define PG_GETARG_PREFIX_RANGE(n)	  DatumGetPrefixRange(PG_DETOAST_DATUM(PG_GETARG_DATUM(n)))
+#define PG_RETURN_PREFIX_RANGE(x)	  return PrefixRangeGetDatum(x)
+
+/**
+ * Internal functions to use from PostgreSQL interfaces above.
+ *
+ * First, the input reader. A prefix range will have to respect the
+ * following regular expression: .*([[].-.[]])?
+ * examples : 123[4-6], [1-3], 234
+ *
+ * As prefixes should be able to contain any character code, and we
+ * attribute a special meaning to '[' and ']', we provide an escape
+ * character (\) to allow users to use '[' and ']' in their prefix
+ * ranges, as in: foo\[
+ */
+static inline
+struct varlena *pr_from_str(char *str) {
+  prefix_range *pr = NULL;
+
+  struct varlena *vdat = NULL;
+  int size;
+
+  char current = 0, previous = 0;
+  bool opened = false;
+  bool closed = false;
+  bool sawsep = false;
+  bool escaping = false;
+  char *ptr, *prefix;
+
+  for(ptr=str; *ptr != 0; ptr++) {
+    previous = current;
+    current = *ptr;
+
+    switch( current ) {
+
+    case PR_ESCAPE:
+      escaping = !escaping;
+
+      if(escaping)
+	continue;
+      break;
+
+    case PR_OPEN:
+      if( opened ) {
+#ifdef DEBUG
+	elog(ERROR,
+	     "prefix_range %s contains several %c", str, PR_OPEN);
+#endif
+	return NULL;
+      }
+      opened = true;
+
+      prefix = (char *)palloc((ptr-str+1)*sizeof(char));
+      memcpy(prefix, str, ptr-str);
+      prefix[ptr-str] = 0;
+
+#ifdef DEBUG
+      elog(NOTICE,
+	   "prefix_range_in read prefix %s of len %d [%d]", prefix, ptr-str, strlen(prefix));
+#endif
+
+      pr = palloc(sizeof(prefix_range) + sizeof(prefix));
+      memcpy(pr->prefix, prefix, sizeof(prefix));
+
+      size = sizeof(prefix_range) + sizeof(pr->prefix) + VARHDRSZ;
+      vdat = palloc(size);
+      PREFIX_SET_VARSIZE(vdat, size);
+      memcpy(VARDATA(vdat), pr, size - VARHDRSZ);
+
+      pr = (prefix_range *)VARDATA(vdat);
+
+      break;
+
+    case PR_SEP:
+      if( opened ) {
+	if( closed ) {
+#ifdef DEBUG
+	  elog(ERROR,
+	       "prefix_range %s contains trailing character", str);
+#endif
+	  return NULL;
+	}
+	sawsep = true;
+
+	if( previous == PR_OPEN ) {
+#ifdef DEBUG
+	  elog(ERROR,
+	       "prefix_range %s has separator following range opening, without data", str);
+#endif	  
+	  return NULL;
+	}
+
+	pr->first = previous;
+      }
+      break;
+
+    case PR_CLOSE:
+      if( !opened ) {
+#ifdef DEBUG
+	elog(ERROR,
+	     "prefix_range %s closes a range which is not opened ", str);
+#endif
+	return NULL;
+      }
+
+      if( closed ) {
+#ifdef DEBUG
+	elog(ERROR,
+	     "prefix_range %s contains several %c", str, PR_CLOSE);
+#endif
+	return NULL;
+      }
+      closed = true;
+
+      if( sawsep ) {
+	if( previous == PR_SEP ) {
+#ifdef DEBUG
+	  elog(ERROR,
+	       "prefix_range %s has a closed range without last bound", str);	  
+#endif
+	  return NULL;
+	}
+	pr->last = previous;
+      }
+      else {
+#ifdef DEBUG
+	elog(ERROR,
+	     "prefix_range %s has a closing range without separator", str);
+#endif
+	return NULL;
+      }
+
+      break;
+
+    default:
+      if( closed ) {
+#ifdef DEBUG
+	elog(ERROR,
+	     "prefix_range %s contains trailing characters", str);
+#endif
+	return NULL;
+      }
+ 
+      if( escaping )
+	escaping = false;
+
+      break;
+    }
+  }
+
+  if( opened && !closed ) {
+#ifdef DEBUG
+    elog(ERROR, "prefix_range %s opens a range but does not close it", str);
+#endif
+    return NULL;
+  }
+
+#ifdef DEBUG
+  elog(NOTICE,
+       "prefix_range %s: prefix = '%s', first = '%c', last = '%c'", 
+       str, pr->prefix, pr->first, pr->last);
+#endif
+
+  return vdat;
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_in);
+Datum
+prefix_range_in(PG_FUNCTION_ARGS)
+{
+    char *str = PG_GETARG_CSTRING(0);
+    struct varlena *pr = pr_from_str(str);
+
+    if (pr != NULL) {
+      PG_RETURN_PREFIX_RANGE((prefix_range *)VARDATA(pr));
+    }
+
+    ereport(ERROR,
+	    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+	     errmsg("invalid prefix_range value: \"%s\"", str)));
+    PG_RETURN_NULL();
+}
+
+
+PG_FUNCTION_INFO_V1(prefix_range_out);
+Datum
+prefix_range_out(PG_FUNCTION_ARGS)
+{
+    prefix_range *pr = PG_GETARG_PREFIX_RANGE(0);
+    char *out = (char *)palloc((strlen(pr->prefix)+6) * sizeof(char));
+
+    sprintf(out, "%s[%c-%c]", pr->prefix, pr->first, pr->last);
+
+    PG_RETURN_CSTRING(out);
+}
 
 /**
  * - Operator prefix @> query and query <@ prefix
@@ -86,12 +323,15 @@ static inline
 bool prefix_contains_internal(text *prefix, text *query, bool eqval)
 {
   int plen, qlen = 0;
-    
+
+  /**
+   * This does not seem necessary.
+   *
   if( DirectFunctionCall2(texteq,
 			  PointerGetDatum(prefix), 
 			  PointerGetDatum(query)) )
     return eqval;
-
+  */
   plen = PREFIX_VARSIZE(prefix);
   qlen = PREFIX_VARSIZE(query);
 
@@ -122,7 +362,7 @@ prefix_contained_by(PG_FUNCTION_ARGS)
 {
     PG_RETURN_BOOL( prefix_contains_internal(PREFIX_PG_GETARG_TEXT(1),
 					     PREFIX_PG_GETARG_TEXT(0),
-					     TRUE) );
+					     true) );
 }
 
 /**

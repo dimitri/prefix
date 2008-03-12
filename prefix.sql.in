@@ -19,6 +19,7 @@ CREATE TYPE prefix_range (
 	INPUT = prefix_range_in,
 	OUTPUT = prefix_range_out
 );
+COMMENT ON TYPE prefix_range IS 'prefix range: (prefix)?([a-b])?';
 
 CREATE OR REPLACE FUNCTION prefix_range(text)
 RETURNS prefix_range
@@ -32,6 +33,122 @@ LANGUAGE 'C' IMMUTABLE STRICT;
 
 CREATE CAST (text as prefix_range) WITH FUNCTION prefix_range(text);
 CREATE CAST (prefix_range as text) WITH FUNCTION text(prefix_range);
+
+
+CREATE OR REPLACE FUNCTION prefix_range_eq(prefix_range, prefix_range)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
+CREATE OR REPLACE FUNCTION prefix_range_neq(prefix_range, prefix_range)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
+CREATE OR REPLACE FUNCTION prefix_range_overlaps(prefix_range, prefix_range)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
+CREATE OR REPLACE FUNCTION prefix_range_contains(prefix_range, prefix_range)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
+CREATE OR REPLACE FUNCTION prefix_range_contains_strict(prefix_range, prefix_range)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
+CREATE OR REPLACE FUNCTION prefix_range_contained_by(prefix_range, prefix_range)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
+CREATE OR REPLACE FUNCTION prefix_range_contained_by_strict(prefix_range, prefix_range)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
+DROP OPERATOR IF EXISTS <<(prefix_range, prefix_range) CASCADE;
+CREATE OPERATOR << (
+	LEFTARG = prefix_range,
+	RIGHTARG = prefix_range,
+	PROCEDURE = prefix_range_contained_by_strict,
+	COMMUTATOR = '>>',
+	RESTRICT = contsel,
+	JOIN = contjoinsel
+);
+COMMENT ON OPERATOR <<(prefix_range, prefix_range) IS 'contained by strict?';
+
+DROP OPERATOR IF EXISTS <<=(prefix_range, prefix_range) CASCADE;
+CREATE OPERATOR <<= (
+	LEFTARG = prefix_range,
+	RIGHTARG = prefix_range,
+	PROCEDURE = prefix_range_contained_by,
+	COMMUTATOR = '>>=',
+	RESTRICT = contsel,
+	JOIN = contjoinsel
+);
+COMMENT ON OPERATOR <<=(prefix_range, prefix_range) IS 'contained by?';
+
+DROP OPERATOR IF EXISTS &&(prefix_range, prefix_range) CASCADE;
+CREATE OPERATOR && (
+	LEFTARG = prefix_range,
+	RIGHTARG = prefix_range,
+	PROCEDURE = prefix_range_overlaps,
+	COMMUTATOR = '&&',
+	RESTRICT = areasel,
+	JOIN = areajoinsel
+);
+COMMENT ON OPERATOR &&(prefix_range, prefix_range) IS 'overlaps?';
+
+DROP OPERATOR IF EXISTS >>(prefix_range, prefix_range) CASCADE;
+CREATE OPERATOR >> (
+	LEFTARG = prefix_range,
+	RIGHTARG = prefix_range,
+	PROCEDURE = prefix_range_contains_strict,
+	COMMUTATOR = '<<',
+	RESTRICT = contsel,
+	JOIN = contjoinsel
+);
+COMMENT ON OPERATOR >>(prefix_range, prefix_range) IS 'contains strict?';
+
+DROP OPERATOR IF EXISTS >>=(prefix_range, prefix_range) CASCADE;
+CREATE OPERATOR >>= (
+	LEFTARG = prefix_range,
+	RIGHTARG = prefix_range,
+	PROCEDURE = prefix_range_contains,
+	COMMUTATOR = '<<=',
+	RESTRICT = contsel,
+	JOIN = contjoinsel
+);
+COMMENT ON OPERATOR >>=(prefix_range, prefix_range) IS 'contains?';
+
+DROP OPERATOR IF EXISTS =(prefix_range, prefix_range) CASCADE;
+CREATE OPERATOR = (
+	LEFTARG = prefix_range,
+	RIGHTARG = prefix_range,
+	PROCEDURE = prefix_range_eq,
+	COMMUTATOR = '=',
+	NEGATOR = '<>',
+	RESTRICT = eqsel,
+	JOIN = eqjoinsel
+);
+COMMENT ON OPERATOR >>=(prefix_range, prefix_range) IS 'equals?';
+
+DROP OPERATOR IF EXISTS <>(prefix_range, prefix_range) CASCADE;
+CREATE OPERATOR <> (
+	LEFTARG = prefix_range,
+	RIGHTARG = prefix_range,
+	PROCEDURE = prefix_range_neq,
+	COMMUTATOR = '<>',
+	NEGATOR = '=',
+	RESTRICT = neqsel,
+	JOIN = neqjoinsel
+);
+COMMENT ON OPERATOR >>=(prefix_range, prefix_range) IS 'not equals?';
+
 
 COMMIT;
 

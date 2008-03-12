@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.15 2008/03/12 12:30:43 dim Exp $
+ * $Id: prefix.c,v 1.16 2008/03/12 17:18:16 dim Exp $
  */
 
 #include <stdio.h>
@@ -84,9 +84,6 @@ Datum prefix_range_in(PG_FUNCTION_ARGS);
 Datum prefix_range_out(PG_FUNCTION_ARGS);
 Datum prefix_range_cast_to_text(PG_FUNCTION_ARGS);
 Datum prefix_range_cast_from_text(PG_FUNCTION_ARGS);
-/*
-Datum prefix_range_recv(PG_FUNCTION_ARGS);
-Datum prefix_range_send(PG_FUNCTION_ARGS);
 Datum prefix_range_eq(PG_FUNCTION_ARGS);
 Datum prefix_range_neq(PG_FUNCTION_ARGS);
 Datum prefix_range_overlaps(PG_FUNCTION_ARGS);
@@ -94,6 +91,9 @@ Datum prefix_range_contains(PG_FUNCTION_ARGS);
 Datum prefix_range_contains_strict(PG_FUNCTION_ARGS);
 Datum prefix_range_contained_by(PG_FUNCTION_ARGS);
 Datum prefix_range_contained_by_strict(PG_FUNCTION_ARGS);
+/*
+Datum prefix_range_recv(PG_FUNCTION_ARGS);
+Datum prefix_range_send(PG_FUNCTION_ARGS);
 Datum prefix_range_union(PG_FUNCTION_ARGS);
 Datum prefix_range_inter(PG_FUNCTION_ARGS);
 */
@@ -308,6 +308,66 @@ struct varlena *make_varlena(prefix_range *pr) {
   return NULL;
 }
 
+static inline
+bool pr_eq(prefix_range *a, prefix_range *b) {
+  int sa = strlen(a->prefix);
+  int sb = strlen(b->prefix);
+
+  return sa == sb
+    && memcmp(a->prefix, b->prefix, sa) == 0
+    && a->first == b->first 
+    && a->last  == b->last;
+}
+
+/**
+ * TODO
+ *
+ * right prefix range overlaps left one when any text prefixed by left
+ * is known to be prefixed by any right prefix.
+ */
+static inline
+bool pr_overlaps(prefix_range *left, prefix_range *right) {
+  return false;
+}
+
+static inline
+bool pr_contains(prefix_range *left, prefix_range *right, bool eqval) {
+  int sl;
+  int sr;
+  bool left_prefixes_right;
+
+  if( pr_eq(left, right) )
+    return eqval;
+
+  sl = strlen(left->prefix);
+  sr = strlen(right->prefix);
+
+  if( sr < sl )
+    return false;
+
+  left_prefixes_right = memcmp(left->prefix, right->prefix, sl) == 0;
+
+  if( left_prefixes_right ) {
+    if( sl == sr )
+      return left->first == 0 ||
+	(left->first <= right->first && left->last >= right->last);
+
+    return left->first == 0 ||
+      (left->first <= right->prefix[sl] && right->prefix[sl] <= left->last);
+  }
+  return false;
+}
+
+/**
+ * TODO
+ */
+static inline
+prefix_range *pr_union(prefix_range *a, prefix_range *b) {
+  prefix_range *res = NULL;
+
+  return res;
+}
+
 PG_FUNCTION_INFO_V1(prefix_range_in);
 Datum
 prefix_range_in(PG_FUNCTION_ARGS)
@@ -368,6 +428,70 @@ prefix_range_cast_to_text(PG_FUNCTION_ARGS)
     PG_RETURN_TEXT_P(out);
   }
   PG_RETURN_NULL();
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_eq);
+Datum
+prefix_range_eq(PG_FUNCTION_ARGS)
+{
+  PG_RETURN_BOOL( pr_eq(PG_GETARG_PREFIX_RANGE_P(0), 
+			PG_GETARG_PREFIX_RANGE_P(1)) );
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_neq);
+Datum
+prefix_range_neq(PG_FUNCTION_ARGS)
+{
+  PG_RETURN_BOOL( ! pr_eq(PG_GETARG_PREFIX_RANGE_P(0), 
+			  PG_GETARG_PREFIX_RANGE_P(1)) );
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_overlaps);
+Datum
+prefix_range_overlaps(PG_FUNCTION_ARGS)
+{
+  ereport(ERROR,
+	  (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+	   errmsg("prefix_range overlaps is not yep implemented.")));
+
+  PG_RETURN_BOOL( pr_overlaps(PG_GETARG_PREFIX_RANGE_P(0), 
+			      PG_GETARG_PREFIX_RANGE_P(1)) );
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_contains);
+Datum
+prefix_range_contains(PG_FUNCTION_ARGS)
+{
+  PG_RETURN_BOOL( pr_contains(PG_GETARG_PREFIX_RANGE_P(0), 
+			      PG_GETARG_PREFIX_RANGE_P(1),
+			      TRUE ));
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_contains_strict);
+Datum
+prefix_range_contains_strict(PG_FUNCTION_ARGS)
+{
+  PG_RETURN_BOOL( pr_contains(PG_GETARG_PREFIX_RANGE_P(0),
+			      PG_GETARG_PREFIX_RANGE_P(1),
+			      FALSE ));
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_contained_by);
+Datum
+prefix_range_contained_by(PG_FUNCTION_ARGS)
+{
+  PG_RETURN_BOOL( pr_contains(PG_GETARG_PREFIX_RANGE_P(1),
+			      PG_GETARG_PREFIX_RANGE_P(0),
+			      TRUE ));
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_contained_by_strict);
+Datum
+prefix_range_contained_by_strict(PG_FUNCTION_ARGS)
+{
+  PG_RETURN_BOOL( pr_contains(PG_GETARG_PREFIX_RANGE_P(1),
+			      PG_GETARG_PREFIX_RANGE_P(0),
+			      FALSE ));
 }
 
 /**

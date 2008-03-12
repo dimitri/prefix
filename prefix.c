@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.14 2008/03/11 17:25:36 dim Exp $
+ * $Id: prefix.c,v 1.15 2008/03/12 12:30:43 dim Exp $
  */
 
 #include <stdio.h>
@@ -33,6 +33,8 @@
 #define  DEBUG_PRESORT_MAX
 #define  DEBUG_PRESORT_UNIONS
 #define  DEBUG_PRESORT_RESULT
+
+#define  DEBUG_PR_IN
 */
 
 PG_MODULE_MAGIC;
@@ -70,7 +72,6 @@ typedef struct {
 } prefix_range;
 
 enum pr_delimiters_t {
-  PR_ESCAPE = '\\',
   PR_OPEN   = '[',
   PR_CLOSE  = ']',
   PR_SEP    = '-'
@@ -81,11 +82,11 @@ enum pr_delimiters_t {
  */
 Datum prefix_range_in(PG_FUNCTION_ARGS);
 Datum prefix_range_out(PG_FUNCTION_ARGS);
+Datum prefix_range_cast_to_text(PG_FUNCTION_ARGS);
+Datum prefix_range_cast_from_text(PG_FUNCTION_ARGS);
 /*
 Datum prefix_range_recv(PG_FUNCTION_ARGS);
 Datum prefix_range_send(PG_FUNCTION_ARGS);
-Datum prefix_range_cast_to_text(PG_FUNCTION_ARGS);
-Datum prefix_range_cast_from_text(PG_FUNCTION_ARGS);
 Datum prefix_range_eq(PG_FUNCTION_ARGS);
 Datum prefix_range_neq(PG_FUNCTION_ARGS);
 Datum prefix_range_overlaps(PG_FUNCTION_ARGS);
@@ -97,53 +98,66 @@ Datum prefix_range_union(PG_FUNCTION_ARGS);
 Datum prefix_range_inter(PG_FUNCTION_ARGS);
 */
 
-#define DatumGetPrefixRange(X)	          ((prefix_range *) DatumGetPointer(X))
-#define PrefixRangeGetDatum(X)	          PointerGetDatum(X)
-#define PG_GETARG_PREFIX_RANGE(n)	  DatumGetPrefixRange(PG_DETOAST_DATUM(PG_GETARG_DATUM(n)))
-#define PG_RETURN_PREFIX_RANGE(x)	  return PrefixRangeGetDatum(x)
+#define DatumGetPrefixRange(X)	          ((prefix_range *) PREFIX_VARDATA(DatumGetPointer(X)) )
+#define PrefixRangeGetDatum(X)	          PointerGetDatum(make_varlena(X))
+#define PG_GETARG_PREFIX_RANGE_P(n)	  DatumGetPrefixRange(PG_DETOAST_DATUM(PG_GETARG_DATUM(n)))
+#define PG_RETURN_PREFIX_RANGE_P(x)	  return PrefixRangeGetDatum(x)
 
 /**
- * Internal functions to use from PostgreSQL interfaces above.
- *
  * First, the input reader. A prefix range will have to respect the
- * following regular expression: .*([[].-.[]])?
- * examples : 123[4-6], [1-3], 234
+ * following regular expression: .*([[].-.[]])? 
  *
- * As prefixes should be able to contain any character code, and we
- * attribute a special meaning to '[' and ']', we provide an escape
- * character (\) to allow users to use '[' and ']' in their prefix
- * ranges, as in: foo\[
+ * examples : 123[4-6], [1-3], 234, 01[] --- last one not covered by
+ * regexp.
  */
+
 static inline
-struct varlena *pr_from_str(char *str) {
+prefix_range *build_pr(char *prefix) {
+  int s = strlen(prefix) + 1;
+  prefix_range *pr = palloc(sizeof(prefix_range) + s);
+  memcpy(pr->prefix, prefix, s);
+  pr->first = 0;
+  pr->last  = 0;
+
+#ifdef DEBUG_PR_IN
+  elog(NOTICE,
+       "build_pr: pr->prefix = '%s', pr->first = %d, pr->last = %d", 
+       pr->prefix, pr->first, pr->last);
+#endif
+
+  return pr;
+}
+
+static inline
+prefix_range *pr_from_str(char *str) {
   prefix_range *pr = NULL;
-
-  struct varlena *vdat = NULL;
-  int size;
-
+  char *prefix = (char *)palloc(strlen(str)+1);
   char current = 0, previous = 0;
   bool opened = false;
   bool closed = false;
   bool sawsep = false;
-  bool escaping = false;
-  char *ptr, *prefix;
+  char *ptr, *prefix_ptr = prefix;
+  char tmpswap;
+
+  bzero(prefix, strlen(str)+1);
 
   for(ptr=str; *ptr != 0; ptr++) {
     previous = current;
     current = *ptr;
 
+    if( !opened && current != PR_OPEN )
+      *prefix_ptr++ = current;
+
+#ifdef DEBUG_PR_IN
+    elog(NOTICE, "prefix_range previous='%c' current='%c' prefix='%s'", 
+	 (previous?previous:' '), current, prefix);
+#endif
+
     switch( current ) {
-
-    case PR_ESCAPE:
-      escaping = !escaping;
-
-      if(escaping)
-	continue;
-      break;
 
     case PR_OPEN:
       if( opened ) {
-#ifdef DEBUG
+#ifdef DEBUG_PR_IN
 	elog(ERROR,
 	     "prefix_range %s contains several %c", str, PR_OPEN);
 #endif
@@ -151,31 +165,13 @@ struct varlena *pr_from_str(char *str) {
       }
       opened = true;
 
-      prefix = (char *)palloc((ptr-str+1)*sizeof(char));
-      memcpy(prefix, str, ptr-str);
-      prefix[ptr-str] = 0;
-
-#ifdef DEBUG
-      elog(NOTICE,
-	   "prefix_range_in read prefix %s of len %d [%d]", prefix, ptr-str, strlen(prefix));
-#endif
-
-      pr = palloc(sizeof(prefix_range) + sizeof(prefix));
-      memcpy(pr->prefix, prefix, sizeof(prefix));
-
-      size = sizeof(prefix_range) + sizeof(pr->prefix) + VARHDRSZ;
-      vdat = palloc(size);
-      PREFIX_SET_VARSIZE(vdat, size);
-      memcpy(VARDATA(vdat), pr, size - VARHDRSZ);
-
-      pr = (prefix_range *)VARDATA(vdat);
-
+      pr = build_pr(prefix);
       break;
 
     case PR_SEP:
       if( opened ) {
 	if( closed ) {
-#ifdef DEBUG
+#ifdef DEBUG_PR_IN
 	  elog(ERROR,
 	       "prefix_range %s contains trailing character", str);
 #endif
@@ -184,7 +180,7 @@ struct varlena *pr_from_str(char *str) {
 	sawsep = true;
 
 	if( previous == PR_OPEN ) {
-#ifdef DEBUG
+#ifdef DEBUG_PR_IN
 	  elog(ERROR,
 	       "prefix_range %s has separator following range opening, without data", str);
 #endif	  
@@ -197,7 +193,7 @@ struct varlena *pr_from_str(char *str) {
 
     case PR_CLOSE:
       if( !opened ) {
-#ifdef DEBUG
+#ifdef DEBUG_PR_IN
 	elog(ERROR,
 	     "prefix_range %s closes a range which is not opened ", str);
 #endif
@@ -205,7 +201,7 @@ struct varlena *pr_from_str(char *str) {
       }
 
       if( closed ) {
-#ifdef DEBUG
+#ifdef DEBUG_PR_IN
 	elog(ERROR,
 	     "prefix_range %s contains several %c", str, PR_CLOSE);
 #endif
@@ -215,7 +211,7 @@ struct varlena *pr_from_str(char *str) {
 
       if( sawsep ) {
 	if( previous == PR_SEP ) {
-#ifdef DEBUG
+#ifdef DEBUG_PR_IN
 	  elog(ERROR,
 	       "prefix_range %s has a closed range without last bound", str);	  
 #endif
@@ -224,45 +220,92 @@ struct varlena *pr_from_str(char *str) {
 	pr->last = previous;
       }
       else {
-#ifdef DEBUG
-	elog(ERROR,
-	     "prefix_range %s has a closing range without separator", str);
+	if( previous != PR_OPEN ) {
+#ifdef DEBUG_PR_IN
+	  elog(ERROR,
+	       "prefix_range %s has a closing range without separator", str);
 #endif
-	return NULL;
+	  return NULL;
+	}
       }
-
       break;
 
     default:
       if( closed ) {
-#ifdef DEBUG
+#ifdef DEBUG_PR_IN
 	elog(ERROR,
 	     "prefix_range %s contains trailing characters", str);
 #endif
 	return NULL;
-      }
- 
-      if( escaping )
-	escaping = false;
-
+      } 
       break;
     }
   }
 
+  if( ! opened ) {
+    pr = build_pr(prefix);
+  }
+
   if( opened && !closed ) {
-#ifdef DEBUG
+#ifdef DEBUG_PR_IN
     elog(ERROR, "prefix_range %s opens a range but does not close it", str);
 #endif
     return NULL;
   }
 
-#ifdef DEBUG
-  elog(NOTICE,
-       "prefix_range %s: prefix = '%s', first = '%c', last = '%c'", 
-       str, pr->prefix, pr->first, pr->last);
+  /**
+   * Ensure first < last
+   */
+  if( pr->first == pr->last ) {
+    int s = strlen(pr->prefix)+2;
+    prefix = (char *)palloc(s);
+    memcpy(prefix, pr->prefix, s-2);
+    prefix[s-2] = pr->first;
+    prefix[s-1] = 0;
+
+#ifdef DEBUG_PR_IN
+    elog(NOTICE, "prefix_range %s %s %s", str, pr->prefix, prefix);
 #endif
 
-  return vdat;
+    pfree(pr);    
+    pr = build_pr(prefix);
+  }
+  else if( pr->first > pr->last ) {
+    tmpswap   = pr->first;
+    pr->first = pr->last;
+    pr->last  = tmpswap;
+  }
+
+#ifdef DEBUG_PR_IN
+  if( pr != NULL ) {
+    if( pr->first && pr->last )
+      elog(NOTICE,
+	   "prefix_range %s: prefix = '%s', first = '%c', last = '%c'", 
+	   str, pr->prefix, pr->first, pr->last);
+    else
+      elog(NOTICE,
+	   "prefix_range %s: prefix = '%s', no first nor last", 
+	   str, pr->prefix);
+  }
+#endif
+
+  return pr;
+}
+
+static inline
+struct varlena *make_varlena(prefix_range *pr) {
+  struct varlena *vdat;
+  int size;
+  
+  if (pr != NULL) {
+    size = sizeof(prefix_range) + sizeof(pr->prefix) + VARHDRSZ;
+    vdat = palloc(size);
+    PREFIX_SET_VARSIZE(vdat, size);
+    memcpy(VARDATA(vdat), pr, size - VARHDRSZ);
+
+    return vdat;
+  }
+  return NULL;
 }
 
 PG_FUNCTION_INFO_V1(prefix_range_in);
@@ -270,10 +313,10 @@ Datum
 prefix_range_in(PG_FUNCTION_ARGS)
 {
     char *str = PG_GETARG_CSTRING(0);
-    struct varlena *pr = pr_from_str(str);
+    prefix_range *pr = pr_from_str(str);
 
     if (pr != NULL) {
-      PG_RETURN_PREFIX_RANGE((prefix_range *)VARDATA(pr));
+      PG_RETURN_PREFIX_RANGE_P(pr);
     }
 
     ereport(ERROR,
@@ -287,12 +330,44 @@ PG_FUNCTION_INFO_V1(prefix_range_out);
 Datum
 prefix_range_out(PG_FUNCTION_ARGS)
 {
-    prefix_range *pr = PG_GETARG_PREFIX_RANGE(0);
-    char *out = (char *)palloc((strlen(pr->prefix)+6) * sizeof(char));
+  prefix_range *pr = PG_GETARG_PREFIX_RANGE_P(0);
+  char *out = NULL;
 
+  if( pr->first ) {
+    out = (char *)palloc((strlen(pr->prefix)+6) * sizeof(char));
     sprintf(out, "%s[%c-%c]", pr->prefix, pr->first, pr->last);
+  }
+  else {
+    out = (char *)palloc((strlen(pr->prefix)+3) * sizeof(char));
+    sprintf(out, "%s[]", pr->prefix);
+  }
+  PG_RETURN_CSTRING(out);
+}
 
-    PG_RETURN_CSTRING(out);
+PG_FUNCTION_INFO_V1(prefix_range_cast_from_text);
+Datum
+prefix_range_cast_from_text(PG_FUNCTION_ARGS)
+{
+  text *txt = PG_GETARG_TEXT_P(0);
+  Datum cstring = DirectFunctionCall1(textout, PointerGetDatum(txt));
+  return DirectFunctionCall1(prefix_range_in, cstring);
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_cast_to_text);
+Datum
+prefix_range_cast_to_text(PG_FUNCTION_ARGS)
+{
+  prefix_range *pr = PG_GETARG_PREFIX_RANGE_P(0);
+  Datum cstring;
+  text *out;
+
+  if (pr != NULL) {
+    cstring = DirectFunctionCall1(prefix_range_out, PrefixRangeGetDatum(pr));
+    out = (text *)DirectFunctionCall1(textin, cstring);
+
+    PG_RETURN_TEXT_P(out);
+  }
+  PG_RETURN_NULL();
 }
 
 /**

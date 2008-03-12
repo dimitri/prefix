@@ -3,6 +3,8 @@
 ---
 BEGIN;
 
+DROP TYPE IF EXISTS prefix_range CASCADE;
+
 CREATE OR REPLACE FUNCTION prefix_range_in(cstring)
 RETURNS prefix_range
 AS 'MODULE_PATHNAME'
@@ -17,6 +19,19 @@ CREATE TYPE prefix_range (
 	INPUT = prefix_range_in,
 	OUTPUT = prefix_range_out
 );
+
+CREATE OR REPLACE FUNCTION prefix_range(text)
+RETURNS prefix_range
+AS 'MODULE_PATHNAME', 'prefix_range_cast_from_text'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
+CREATE OR REPLACE FUNCTION text(prefix_range)
+RETURNS text
+AS 'MODULE_PATHNAME', 'prefix_range_cast_to_text'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
+CREATE CAST (text as prefix_range) WITH FUNCTION prefix_range(text);
+CREATE CAST (prefix_range as text) WITH FUNCTION text(prefix_range);
 
 COMMIT;
 

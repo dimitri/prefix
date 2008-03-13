@@ -45,6 +45,16 @@ RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE 'C' IMMUTABLE STRICT;
 
+CREATE OR REPLACE FUNCTION prefix_range_lt(prefix_range, prefix_range)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
+CREATE OR REPLACE FUNCTION prefix_range_le(prefix_range, prefix_range)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
 CREATE OR REPLACE FUNCTION prefix_range_overlaps(prefix_range, prefix_range)
 RETURNS bool
 AS 'MODULE_PATHNAME'
@@ -159,6 +169,22 @@ CREATE OPERATOR <> (
 );
 COMMENT ON OPERATOR >>=(prefix_range, prefix_range) IS 'not equals?';
 
+DROP OPERATOR IF EXISTS <(prefix_range, prefix_range) CASCADE;
+CREATE OPERATOR < (
+	LEFTARG = prefix_range,
+	RIGHTARG = prefix_range,
+	PROCEDURE = prefix_range_lt
+);
+COMMENT ON OPERATOR <(prefix_range, prefix_range) IS 'less-than';
+
+DROP OPERATOR IF EXISTS <=(prefix_range, prefix_range) CASCADE;
+CREATE OPERATOR <= (
+	LEFTARG = prefix_range,
+	RIGHTARG = prefix_range,
+	PROCEDURE = prefix_range_le
+);
+COMMENT ON OPERATOR <=(prefix_range, prefix_range) IS 'less-than-or-equal';
+
 DROP OPERATOR IF EXISTS @>(prefix_range, text) CASCADE;
 CREATE OPERATOR @> (
 	LEFTARG = prefix_range,
@@ -175,7 +201,7 @@ CREATE OPERATOR <@ (
 	PROCEDURE = prefix_range_contained_by_prefix,
 	COMMUTATOR = '@>'
 );
-COMMENT ON OPERATOR <@(prefix_range, text) IS 'prefix_range is contained by query?';
+COMMENT ON OPERATOR <@(text, prefix_range) IS 'prefix_range is contained by query?';
 
 COMMIT;
 

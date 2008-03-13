@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.17 2008/03/13 10:00:12 dim Exp $
+ * $Id: prefix.c,v 1.18 2008/03/13 14:44:47 dim Exp $
  */
 
 #include <stdio.h>
@@ -35,6 +35,7 @@
 #define  DEBUG_PRESORT_RESULT
 
 #define  DEBUG_PR_IN
+#define  DEBUG_MAKE_VARLENA
 */
 
 PG_MODULE_MAGIC;
@@ -67,7 +68,7 @@ PG_MODULE_MAGIC;
  */
 typedef struct {
   char first;
-  int  last;
+  char last;
   char prefix[1]; /* this is a varlena structure, data follows */
 } prefix_range;
 
@@ -86,6 +87,8 @@ Datum prefix_range_cast_to_text(PG_FUNCTION_ARGS);
 Datum prefix_range_cast_from_text(PG_FUNCTION_ARGS);
 Datum prefix_range_eq(PG_FUNCTION_ARGS);
 Datum prefix_range_neq(PG_FUNCTION_ARGS);
+Datum prefix_range_lt(PG_FUNCTION_ARGS);
+Datum prefix_range_le(PG_FUNCTION_ARGS);
 Datum prefix_range_overlaps(PG_FUNCTION_ARGS);
 Datum prefix_range_contains(PG_FUNCTION_ARGS);
 Datum prefix_range_contains_strict(PG_FUNCTION_ARGS);
@@ -315,10 +318,19 @@ struct varlena *make_varlena(prefix_range *pr) {
   int size;
   
   if (pr != NULL) {
-    size = sizeof(prefix_range) + sizeof(pr->prefix) + VARHDRSZ;
+    size = sizeof(prefix_range) + strlen(pr->prefix)+1 + VARHDRSZ;
     vdat = palloc(size);
     PREFIX_SET_VARSIZE(vdat, size);
     memcpy(VARDATA(vdat), pr, size - VARHDRSZ);
+
+#ifdef DEBUG_MAKE_VARLENA
+    elog(NOTICE, "make varlena: %d %d %s %c %c",
+	 sizeof(pr->prefix),
+	 strlen(pr->prefix)+1,
+	 ((prefix_range *)VARDATA(vdat))->prefix,
+	 ((prefix_range *)VARDATA(vdat))->first,
+	 ((prefix_range *)VARDATA(vdat))->last);
+#endif
 
     return vdat;
   }
@@ -334,6 +346,46 @@ bool pr_eq(prefix_range *a, prefix_range *b) {
     && memcmp(a->prefix, b->prefix, sa) == 0
     && a->first == b->first 
     && a->last  == b->last;
+}
+
+static inline
+bool pr_lt(prefix_range *a, prefix_range *b, bool eqval) {
+  int cmp = 0;
+  int alen = strlen(a->prefix);
+  int blen = strlen(b->prefix);
+  int mlen = alen;
+  char *p  = a->prefix;
+  char *q  = b->prefix;
+
+  if( alen == blen ) {
+    cmp = memcmp(p, q, alen);
+
+    if( cmp < 0 ) 
+      return true;
+
+    else if( cmp == 0 ) {
+      if( a->first == 0 ) {
+	if( b->first == 0 )
+	  return eqval;
+	return true;
+      }
+      else	
+	return (eqval ? a->first <= b->first : a->first < b->first);
+    }
+    else
+      return false;
+  }
+  if( mlen > blen )
+    mlen = blen;
+
+  if( alen == 0 && a->first != 0 ) {
+    return (eqval ? (a->first <= q[0]) : (a->first < q[0]));
+  }
+  else if( blen == 0 && b->first != 0 ) {
+    return (eqval ? (p[0] <= b->first) : (p[0] < b->first));
+  }
+  else
+    return (eqval ? memcmp(p, q, mlen) <= 0 : memcmp(p, q, mlen) < 0);
 }
 
 /**
@@ -488,6 +540,25 @@ prefix_range_neq(PG_FUNCTION_ARGS)
   PG_RETURN_BOOL( ! pr_eq(PG_GETARG_PREFIX_RANGE_P(0), 
 			  PG_GETARG_PREFIX_RANGE_P(1)) );
 }
+
+PG_FUNCTION_INFO_V1(prefix_range_lt);
+Datum
+prefix_range_lt(PG_FUNCTION_ARGS)
+{
+  PG_RETURN_BOOL( pr_lt(PG_GETARG_PREFIX_RANGE_P(0), 
+			PG_GETARG_PREFIX_RANGE_P(1),
+			FALSE) );
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_le);
+Datum
+prefix_range_le(PG_FUNCTION_ARGS)
+{
+  PG_RETURN_BOOL( pr_lt(PG_GETARG_PREFIX_RANGE_P(0), 
+			PG_GETARG_PREFIX_RANGE_P(1),
+			TRUE) );
+}
+
 
 PG_FUNCTION_INFO_V1(prefix_range_overlaps);
 Datum

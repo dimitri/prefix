@@ -65,6 +65,11 @@ RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE 'C' IMMUTABLE STRICT;
 
+CREATE OR REPLACE FUNCTION prefix_range_cmp(prefix_range, prefix_range)
+RETURNS integer
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
 CREATE OR REPLACE FUNCTION prefix_range_overlaps(prefix_range, prefix_range)
 RETURNS bool
 AS 'MODULE_PATHNAME'

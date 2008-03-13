@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.19 2008/03/13 15:13:01 dim Exp $
+ * $Id: prefix.c,v 1.20 2008/03/13 15:51:14 dim Exp $
  */
 
 #include <stdio.h>
@@ -85,12 +85,15 @@ Datum prefix_range_in(PG_FUNCTION_ARGS);
 Datum prefix_range_out(PG_FUNCTION_ARGS);
 Datum prefix_range_cast_to_text(PG_FUNCTION_ARGS);
 Datum prefix_range_cast_from_text(PG_FUNCTION_ARGS);
+
 Datum prefix_range_eq(PG_FUNCTION_ARGS);
 Datum prefix_range_neq(PG_FUNCTION_ARGS);
 Datum prefix_range_lt(PG_FUNCTION_ARGS);
 Datum prefix_range_le(PG_FUNCTION_ARGS);
 Datum prefix_range_gt(PG_FUNCTION_ARGS);
 Datum prefix_range_ge(PG_FUNCTION_ARGS);
+Datum prefix_range_cmp(PG_FUNCTION_ARGS);
+
 Datum prefix_range_overlaps(PG_FUNCTION_ARGS);
 Datum prefix_range_contains(PG_FUNCTION_ARGS);
 Datum prefix_range_contains_strict(PG_FUNCTION_ARGS);
@@ -617,6 +620,22 @@ prefix_range_ge(PG_FUNCTION_ARGS)
   PG_RETURN_BOOL( pr_gt(PG_GETARG_PREFIX_RANGE_P(0),
 			PG_GETARG_PREFIX_RANGE_P(1),
 			TRUE) );
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_cmp);
+Datum
+prefix_range_cmp(PG_FUNCTION_ARGS)
+{
+  prefix_range *a = PG_GETARG_PREFIX_RANGE_P(0);
+  prefix_range *b = PG_GETARG_PREFIX_RANGE_P(1);
+
+  if( pr_eq(a, b) )
+    PG_RETURN_INT32(0);
+
+  if( pr_lt(a, b, false) )
+    PG_RETURN_INT32(-1);
+
+  PG_RETURN_INT32(1);
 }
 
 PG_FUNCTION_INFO_V1(prefix_range_overlaps);

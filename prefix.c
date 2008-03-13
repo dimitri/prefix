@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.18 2008/03/13 14:44:47 dim Exp $
+ * $Id: prefix.c,v 1.19 2008/03/13 15:13:01 dim Exp $
  */
 
 #include <stdio.h>
@@ -89,6 +89,8 @@ Datum prefix_range_eq(PG_FUNCTION_ARGS);
 Datum prefix_range_neq(PG_FUNCTION_ARGS);
 Datum prefix_range_lt(PG_FUNCTION_ARGS);
 Datum prefix_range_le(PG_FUNCTION_ARGS);
+Datum prefix_range_gt(PG_FUNCTION_ARGS);
+Datum prefix_range_ge(PG_FUNCTION_ARGS);
 Datum prefix_range_overlaps(PG_FUNCTION_ARGS);
 Datum prefix_range_contains(PG_FUNCTION_ARGS);
 Datum prefix_range_contains_strict(PG_FUNCTION_ARGS);
@@ -388,6 +390,46 @@ bool pr_lt(prefix_range *a, prefix_range *b, bool eqval) {
     return (eqval ? memcmp(p, q, mlen) <= 0 : memcmp(p, q, mlen) < 0);
 }
 
+static inline
+bool pr_gt(prefix_range *a, prefix_range *b, bool eqval) {
+  int cmp = 0;
+  int alen = strlen(a->prefix);
+  int blen = strlen(b->prefix);
+  int mlen = alen;
+  char *p  = a->prefix;
+  char *q  = b->prefix;
+
+  if( alen == blen ) {
+    cmp = memcmp(p, q, alen);
+
+    if( cmp > 0 )
+      return true;
+
+    else if( cmp == 0 ) {
+      if( a->last == 0 ) {
+	if( b->last == 0 )
+	  return eqval;
+	return false;
+      }
+      else	
+	return (eqval ? a->last >= b->last : a->last > b->last);
+    }
+    else
+      return false;
+  }
+  if( mlen > blen )
+    mlen = blen;
+
+  if( alen == 0 && a->last != 0 ) {
+    return (eqval ? (a->last >= q[0]) : (a->last > q[0]));
+  }
+  else if( blen == 0 && b->first != 0 ) {
+    return (eqval ? (p[0] >= b->last) : (p[0] > b->last));
+  }
+  else
+    return (eqval ? memcmp(p, q, mlen) >= 0 : memcmp(p, q, mlen) > 0);
+}
+
 /**
  * TODO
  *
@@ -545,7 +587,7 @@ PG_FUNCTION_INFO_V1(prefix_range_lt);
 Datum
 prefix_range_lt(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL( pr_lt(PG_GETARG_PREFIX_RANGE_P(0), 
+  PG_RETURN_BOOL( pr_lt(PG_GETARG_PREFIX_RANGE_P(0),
 			PG_GETARG_PREFIX_RANGE_P(1),
 			FALSE) );
 }
@@ -554,11 +596,28 @@ PG_FUNCTION_INFO_V1(prefix_range_le);
 Datum
 prefix_range_le(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL( pr_lt(PG_GETARG_PREFIX_RANGE_P(0), 
+  PG_RETURN_BOOL( pr_lt(PG_GETARG_PREFIX_RANGE_P(0),
 			PG_GETARG_PREFIX_RANGE_P(1),
 			TRUE) );
 }
 
+PG_FUNCTION_INFO_V1(prefix_range_gt);
+Datum
+prefix_range_gt(PG_FUNCTION_ARGS)
+{
+  PG_RETURN_BOOL( pr_gt(PG_GETARG_PREFIX_RANGE_P(0),
+			PG_GETARG_PREFIX_RANGE_P(1),
+			FALSE) );
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_ge);
+Datum
+prefix_range_ge(PG_FUNCTION_ARGS)
+{
+  PG_RETURN_BOOL( pr_gt(PG_GETARG_PREFIX_RANGE_P(0),
+			PG_GETARG_PREFIX_RANGE_P(1),
+			TRUE) );
+}
 
 PG_FUNCTION_INFO_V1(prefix_range_overlaps);
 Datum

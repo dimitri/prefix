@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.16 2008/03/12 17:18:16 dim Exp $
+ * $Id: prefix.c,v 1.17 2008/03/13 10:00:12 dim Exp $
  */
 
 #include <stdio.h>
@@ -78,7 +78,7 @@ enum pr_delimiters_t {
 } pr_delimiters;
 
 /**
- * prefix_range function and input/output function
+ * prefix_range input/output functions and operators
  */
 Datum prefix_range_in(PG_FUNCTION_ARGS);
 Datum prefix_range_out(PG_FUNCTION_ARGS);
@@ -91,6 +91,8 @@ Datum prefix_range_contains(PG_FUNCTION_ARGS);
 Datum prefix_range_contains_strict(PG_FUNCTION_ARGS);
 Datum prefix_range_contained_by(PG_FUNCTION_ARGS);
 Datum prefix_range_contained_by_strict(PG_FUNCTION_ARGS);
+Datum prefix_range_contains_prefix(PG_FUNCTION_ARGS);
+Datum prefix_range_contained_by_prefix(PG_FUNCTION_ARGS);
 /*
 Datum prefix_range_recv(PG_FUNCTION_ARGS);
 Datum prefix_range_send(PG_FUNCTION_ARGS);
@@ -102,6 +104,21 @@ Datum prefix_range_inter(PG_FUNCTION_ARGS);
 #define PrefixRangeGetDatum(X)	          PointerGetDatum(make_varlena(X))
 #define PG_GETARG_PREFIX_RANGE_P(n)	  DatumGetPrefixRange(PG_DETOAST_DATUM(PG_GETARG_DATUM(n)))
 #define PG_RETURN_PREFIX_RANGE_P(x)	  return PrefixRangeGetDatum(x)
+
+/**
+ * Used by prefix_contains_internal and pr_contains_prefix.
+ *
+ * plen is the length of string p, qlen the length of string q, the
+ * caller are dealing with either text * or char * and its their
+ * responsabolity to use either strlen() or PREFIX_VARSIZE()
+ */
+static inline
+bool __prefix_contains(char *p, char *q, int plen, int qlen) {
+  if(qlen < plen )
+    return false;
+
+  return memcmp(p, q, plen) == 0;
+}
 
 /**
  * First, the input reader. A prefix range will have to respect the
@@ -368,6 +385,32 @@ prefix_range *pr_union(prefix_range *a, prefix_range *b) {
   return res;
 }
 
+/**
+ * does a given prefix_range includes a given prefix?
+ */
+static inline
+bool pr_contains_prefix(prefix_range *pr, text *query, bool eqval) {
+  int plen = strlen(pr->prefix);
+  int qlen = PREFIX_VARSIZE(query);
+  char *p  = pr->prefix;
+  char *q  = (char *)PREFIX_VARDATA(query);
+
+  if( __prefix_contains(p, q, plen, qlen) ) {
+    if( pr->first == 0 || qlen == plen ) {
+      return eqval;
+    }
+
+    /**
+     * __prefix_contains() is true means qlen >= plen, and previous
+     * test ensures qlen != plen, we hence assume qlen > plen.
+     */
+    Assert(qlen > plen);
+    return pr-> first <= q[plen] && q[plen] <= pr->last;
+  }
+  return false;
+}
+
+
 PG_FUNCTION_INFO_V1(prefix_range_in);
 Datum
 prefix_range_in(PG_FUNCTION_ARGS)
@@ -494,6 +537,24 @@ prefix_range_contained_by_strict(PG_FUNCTION_ARGS)
 			      FALSE ));
 }
 
+PG_FUNCTION_INFO_V1(prefix_range_contains_prefix);
+Datum
+prefix_range_contains_prefix(PG_FUNCTION_ARGS)
+{
+  PG_RETURN_BOOL( pr_contains_prefix(PG_GETARG_PREFIX_RANGE_P(0),
+				     PG_GETARG_TEXT_P(1),
+				     TRUE ));
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_contained_by_prefix);
+Datum
+prefix_range_contained_by_prefix(PG_FUNCTION_ARGS)
+{
+  PG_RETURN_BOOL( pr_contains_prefix(PG_GETARG_PREFIX_RANGE_P(1),
+				     PG_GETARG_TEXT_P(0),
+				     TRUE ));
+}
+
 /**
  * - Operator prefix @> query and query <@ prefix
  * - greater_prefix, exposed as a func and an aggregate
@@ -521,23 +582,15 @@ Datum gprefix_same(PG_FUNCTION_ARGS);
 static inline
 bool prefix_contains_internal(text *prefix, text *query, bool eqval)
 {
-  int plen, qlen = 0;
+  int plen = PREFIX_VARSIZE(prefix);
+  int qlen = PREFIX_VARSIZE(query);
+  char *p  = PREFIX_VARDATA(prefix);
+  char *q  = PREFIX_VARDATA(query);
 
-  /**
-   * This does not seem necessary.
-   *
-  if( DirectFunctionCall2(texteq,
-			  PointerGetDatum(prefix), 
-			  PointerGetDatum(query)) )
+  if( __prefix_contains(p, q, plen, qlen) )
     return eqval;
-  */
-  plen = PREFIX_VARSIZE(prefix);
-  qlen = PREFIX_VARSIZE(query);
 
-  if(qlen < plen )
-    return false;
-
-  return memcmp(PREFIX_VARDATA(prefix), PREFIX_VARDATA(query), plen) == 0;
+  return false;
 }
 
 /**

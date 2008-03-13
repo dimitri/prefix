@@ -70,6 +70,16 @@ RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE 'C' IMMUTABLE STRICT;
 
+CREATE OR REPLACE FUNCTION prefix_range_contains_prefix(prefix_range, text)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
+CREATE OR REPLACE FUNCTION prefix_range_contained_by_prefix(text, prefix_range)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
 DROP OPERATOR IF EXISTS <<(prefix_range, prefix_range) CASCADE;
 CREATE OPERATOR << (
 	LEFTARG = prefix_range,
@@ -149,6 +159,23 @@ CREATE OPERATOR <> (
 );
 COMMENT ON OPERATOR >>=(prefix_range, prefix_range) IS 'not equals?';
 
+DROP OPERATOR IF EXISTS @>(prefix_range, text) CASCADE;
+CREATE OPERATOR @> (
+	LEFTARG = prefix_range,
+	RIGHTARG = text,
+	PROCEDURE = prefix_range_contains_prefix,
+	COMMUTATOR = '<@'
+);
+COMMENT ON OPERATOR @>(prefix_range, text) IS 'prefix_range contains query?';
+
+DROP OPERATOR IF EXISTS <@(text, prefix_range) CASCADE;
+CREATE OPERATOR <@ (
+	LEFTARG = text,
+	RIGHTARG = prefix_range,
+	PROCEDURE = prefix_range_contained_by_prefix,
+	COMMUTATOR = '@>'
+);
+COMMENT ON OPERATOR <@(prefix_range, text) IS 'prefix_range is contained by query?';
 
 COMMIT;
 
@@ -175,7 +202,7 @@ CREATE OPERATOR @> (
 	PROCEDURE = prefix_contains,
 	COMMUTATOR = '<@'
 );
-COMMENT ON OPERATOR @>(text, text) IS 'prefix contains query';
+COMMENT ON OPERATOR @>(text, text) IS 'prefix contains query?';
 
 DROP OPERATOR IF EXISTS <@(text, text) CASCADE;
 CREATE OPERATOR <@ (
@@ -184,7 +211,7 @@ CREATE OPERATOR <@ (
 	PROCEDURE = prefix_contained_by,
 	COMMUTATOR = '@>'
 );
-COMMENT ON OPERATOR <@(text, text) IS 'query is contained by prefix';
+COMMENT ON OPERATOR <@(text, text) IS 'query is contained by prefix?';
 
 --
 -- greatest prefix aggregate

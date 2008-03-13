@@ -234,6 +234,17 @@ CREATE OPERATOR <@ (
 );
 COMMENT ON OPERATOR <@(text, prefix_range) IS 'prefix_range is contained by query?';
 
+
+CREATE OPERATOR CLASS btree_prefix_range_ops
+DEFAULT FOR TYPE prefix_range USING btree
+AS
+	OPERATOR	1	< ,
+	OPERATOR	2	<= ,
+	OPERATOR	3	= ,
+	OPERATOR	4	>= ,
+	OPERATOR	5	> ,
+	FUNCTION	1	prefix_range_cmp(prefix_range, prefix_range);
+
 COMMIT;
 
 

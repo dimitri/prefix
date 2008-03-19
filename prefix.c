@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.22 2008/03/19 20:58:59 dim Exp $
+ * $Id: prefix.c,v 1.23 2008/03/19 21:42:08 dim Exp $
  */
 
 #include <stdio.h>
@@ -35,6 +35,7 @@
 #define  DEBUG_PRESORT_RESULT
 
 #define  DEBUG_PR_IN
+#define  DEBUG_PR_NORMALIZE
 #define  DEBUG_MAKE_VARLENA
 */
 
@@ -83,6 +84,10 @@ enum pr_delimiters_t {
  */
 Datum prefix_range_in(PG_FUNCTION_ARGS);
 Datum prefix_range_out(PG_FUNCTION_ARGS);
+/*
+Datum prefix_range_recv(PG_FUNCTION_ARGS);
+Datum prefix_range_send(PG_FUNCTION_ARGS);
+*/
 Datum prefix_range_cast_to_text(PG_FUNCTION_ARGS);
 Datum prefix_range_cast_from_text(PG_FUNCTION_ARGS);
 
@@ -102,12 +107,7 @@ Datum prefix_range_contained_by_strict(PG_FUNCTION_ARGS);
 Datum prefix_range_contains_prefix(PG_FUNCTION_ARGS);
 Datum prefix_range_contained_by_prefix(PG_FUNCTION_ARGS);
 Datum prefix_range_union(PG_FUNCTION_ARGS);
-/*
-Datum prefix_range_recv(PG_FUNCTION_ARGS);
-Datum prefix_range_send(PG_FUNCTION_ARGS);
-Datum prefix_range_union(PG_FUNCTION_ARGS);
 Datum prefix_range_inter(PG_FUNCTION_ARGS);
-*/
 
 #define DatumGetPrefixRange(X)	          ((prefix_range *) PREFIX_VARDATA(DatumGetPointer(X)) )
 #define PrefixRangeGetDatum(X)	          PointerGetDatum(make_varlena(X))
@@ -180,6 +180,37 @@ prefix_range *build_pr(char *prefix) {
 }
 
 static inline
+prefix_range *pr_normalize(prefix_range *a) {
+  char tmpswap;
+  char *prefix;
+
+  prefix_range *pr = build_pr(a->prefix);
+  pr->first = a->first;
+  pr->last  = a->last;
+
+  if( pr->first == pr->last ) {
+    int s = strlen(pr->prefix)+2;
+    prefix = (char *)palloc(s);
+    memcpy(prefix, pr->prefix, s-2);
+    prefix[s-2] = pr->first;
+    prefix[s-1] = 0;
+
+#ifdef DEBUG_PR_NORMALIZE
+    elog(NOTICE, "prefix_range %s %s %s", str, pr->prefix, prefix);
+#endif
+
+    pfree(pr);    
+    pr = build_pr(prefix);
+  }
+  else if( pr->first > pr->last ) {
+    tmpswap   = pr->first;
+    pr->first = pr->last;
+    pr->last  = tmpswap;
+  }
+  return pr;
+}
+
+static inline
 prefix_range *pr_from_str(char *str) {
   prefix_range *pr = NULL;
   char *prefix = (char *)palloc(strlen(str)+1);
@@ -188,7 +219,6 @@ prefix_range *pr_from_str(char *str) {
   bool closed = false;
   bool sawsep = false;
   char *ptr, *prefix_ptr = prefix;
-  char tmpswap;
 
   bzero(prefix, strlen(str)+1);
 
@@ -304,28 +334,7 @@ prefix_range *pr_from_str(char *str) {
     return NULL;
   }
 
-  /**
-   * Ensure first < last
-   */
-  if( pr->first == pr->last ) {
-    int s = strlen(pr->prefix)+2;
-    prefix = (char *)palloc(s);
-    memcpy(prefix, pr->prefix, s-2);
-    prefix[s-2] = pr->first;
-    prefix[s-1] = 0;
-
-#ifdef DEBUG_PR_IN
-    elog(NOTICE, "prefix_range %s %s %s", str, pr->prefix, prefix);
-#endif
-
-    pfree(pr);    
-    pr = build_pr(prefix);
-  }
-  else if( pr->first > pr->last ) {
-    tmpswap   = pr->first;
-    pr->first = pr->last;
-    pr->last  = tmpswap;
-  }
+  pr = pr_normalize(pr);
 
 #ifdef DEBUG_PR_IN
   if( pr != NULL ) {
@@ -525,7 +534,7 @@ prefix_range *pr_union(prefix_range *a, prefix_range *b) {
     res = build_pr("");
     res->first = a->first <= b->first ? a->first : b->first;
     res->last  = a->last  >= b->last  ? a->last : b->last;
-    return res;
+    return pr_normalize(res);
   }
 
   gp = __greater_prefix(a->prefix, b->prefix, alen, blen);
@@ -576,7 +585,7 @@ prefix_range *pr_union(prefix_range *a, prefix_range *b) {
       res->last  = max;
     }
   }
-  return res;
+  return pr_normalize(res);
 }
 
 static inline
@@ -584,28 +593,71 @@ prefix_range *pr_inter(prefix_range *a, prefix_range *b) {
   prefix_range *res = NULL;
   int alen = strlen(a->prefix);
   int blen = strlen(b->prefix);
+  char *gp = NULL;
+  int gplen;
 
   if( 0 == alen && 0 == blen ) {
-    
+    res = build_pr("");
+    res->first = a->first > b->first ? a->first : b->first;
+    res->last  = a->last  < b->last  ? a->last  : b->last;
+    return pr_normalize(res);
   }
 
-  if( alen == 0 ) {
-    
+  gp = __greater_prefix(a->prefix, b->prefix, alen, blen);
+  gplen = strlen(gp);
+
+  if( gplen != alen && gplen != blen ) {
+    return build_pr("");
   }
-  
-  return res;
+
+  if( gplen == alen && 0 == alen ) {
+    if( a->first <= b->prefix[0] && b->prefix[0] <= a->last ) {      
+      res = build_pr(b->prefix);
+      res->first = b->first;
+      res->last  = b->last;
+    }
+    else
+      res = build_pr("");
+  }
+  else if( gplen == blen && 0 == blen ) {
+    if( b->first <= a->prefix[0] && a->prefix[0] <= b->last ) {      
+      res = build_pr(a->prefix);
+      res->first = a->first;
+      res->last  = a->last;
+    }
+    else
+      res = build_pr("");
+  }
+  else if( gplen == alen && alen == blen ) {
+    res = build_pr(gp);
+    res->first = a->first > b->first ? a->first : b->first;
+    res->last  = a->last  < b->last  ? a->last  : b->last;
+  }
+  else if( gplen == alen ) {
+    Assert(gplen < blen);
+    res = build_pr(b->prefix);
+    res->first = b->first;
+    res->last  = b->last;
+  }
+  else if( gplen == blen ) {
+    Assert(gplen < alen);
+    res = build_pr(a->prefix);
+    res->first = a->first;
+    res->last  = a->last;
+  }
+
+  return pr_normalize(res);
 }
 
 /**
- * TODO
- *
  * true if ranges have at least one common element
  */
 static inline
-bool pr_overlaps(prefix_range *left, prefix_range *right) {
-  return false;
-}
+bool pr_overlaps(prefix_range *a, prefix_range *b) {
+  prefix_range *inter = pr_inter(a, b);
 
+  return strlen(inter->prefix) > 0 || (inter->first != 0 && inter->last != 0);
+}
 
 
 PG_FUNCTION_INFO_V1(prefix_range_in);
@@ -742,10 +794,6 @@ PG_FUNCTION_INFO_V1(prefix_range_overlaps);
 Datum
 prefix_range_overlaps(PG_FUNCTION_ARGS)
 {
-  ereport(ERROR,
-	  (errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-	   errmsg("prefix_range overlaps is not yep implemented.")));
-
   PG_RETURN_BOOL( pr_overlaps(PG_GETARG_PREFIX_RANGE_P(0), 
 			      PG_GETARG_PREFIX_RANGE_P(1)) );
 }
@@ -809,6 +857,14 @@ Datum
 prefix_range_union(PG_FUNCTION_ARGS)
 {
   PG_RETURN_PREFIX_RANGE_P( pr_union(PG_GETARG_PREFIX_RANGE_P(0),
+				     PG_GETARG_PREFIX_RANGE_P(1)) );
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_inter);
+Datum
+prefix_range_inter(PG_FUNCTION_ARGS)
+{
+  PG_RETURN_PREFIX_RANGE_P( pr_inter(PG_GETARG_PREFIX_RANGE_P(0),
 				     PG_GETARG_PREFIX_RANGE_P(1)) );
 }
 

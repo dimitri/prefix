@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.21 2008/03/19 20:22:47 dim Exp $
+ * $Id: prefix.c,v 1.22 2008/03/19 20:58:59 dim Exp $
  */
 
 #include <stdio.h>
@@ -521,8 +521,10 @@ prefix_range *pr_union(prefix_range *a, prefix_range *b) {
   int gplen;
   char min, max;
 
-  if( alen == 0 || blen == 0 ) {
+  if( 0 == alen && 0 == blen ) {
     res = build_pr("");
+    res->first = a->first <= b->first ? a->first : b->first;
+    res->last  = a->last  >= b->last  ? a->last : b->last;
     return res;
   }
 
@@ -531,8 +533,18 @@ prefix_range *pr_union(prefix_range *a, prefix_range *b) {
 
   if( gplen == 0 ) {
     res = build_pr("");
-    res->first = a->prefix[0];
-    res->last  = b->prefix[0];
+    if( alen > 0 && blen > 0 ) {
+      res->first = a->prefix[0];
+      res->last  = b->prefix[0];
+    }
+    else if( alen == 0 ) {
+      res->first = a->first <= b->prefix[0] ? a->first : b->prefix[0];
+      res->last  = a->last  >= b->prefix[0] ? a->last  : b->prefix[0];
+    }
+    else if( blen == 0 ) {
+      res->first = b->first <= a->prefix[0] ? b->first : a->prefix[0];
+      res->last  = b->last  >= a->prefix[0] ? b->last  : a->prefix[0];
+    }
   }
   else {
     res = build_pr(gp);
@@ -573,6 +585,14 @@ prefix_range *pr_inter(prefix_range *a, prefix_range *b) {
   int alen = strlen(a->prefix);
   int blen = strlen(b->prefix);
 
+  if( 0 == alen && 0 == blen ) {
+    
+  }
+
+  if( alen == 0 ) {
+    
+  }
+  
   return res;
 }
 

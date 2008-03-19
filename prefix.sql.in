@@ -105,6 +105,11 @@ RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE 'C' IMMUTABLE STRICT;
 
+CREATE OR REPLACE FUNCTION prefix_range_union(prefix_range, prefix_range)
+RETURNS prefix_range
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
 DROP OPERATOR IF EXISTS <<(prefix_range, prefix_range) CASCADE;
 CREATE OPERATOR << (
 	LEFTARG = prefix_range,
@@ -215,6 +220,14 @@ CREATE OPERATOR >= (
 	PROCEDURE = prefix_range_ge
 );
 COMMENT ON OPERATOR >=(prefix_range, prefix_range) IS 'greater-than-or-equal';
+
+DROP OPERATOR IF EXISTS |(prefix_range, prefix_range) CASCADE;
+CREATE OPERATOR | (
+	LEFTARG = prefix_range,
+	RIGHTARG = prefix_range,
+	PROCEDURE = prefix_range_union
+);
+COMMENT ON OPERATOR |(prefix_range, prefix_range) IS 'union';
 
 DROP OPERATOR IF EXISTS @>(prefix_range, text) CASCADE;
 CREATE OPERATOR @> (

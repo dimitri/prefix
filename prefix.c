@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.20 2008/03/13 15:51:14 dim Exp $
+ * $Id: prefix.c,v 1.21 2008/03/19 20:22:47 dim Exp $
  */
 
 #include <stdio.h>
@@ -101,6 +101,7 @@ Datum prefix_range_contained_by(PG_FUNCTION_ARGS);
 Datum prefix_range_contained_by_strict(PG_FUNCTION_ARGS);
 Datum prefix_range_contains_prefix(PG_FUNCTION_ARGS);
 Datum prefix_range_contained_by_prefix(PG_FUNCTION_ARGS);
+Datum prefix_range_union(PG_FUNCTION_ARGS);
 /*
 Datum prefix_range_recv(PG_FUNCTION_ARGS);
 Datum prefix_range_send(PG_FUNCTION_ARGS);
@@ -127,6 +128,31 @@ bool __prefix_contains(char *p, char *q, int plen, int qlen) {
 
   return memcmp(p, q, plen) == 0;
 }
+
+static inline
+char *__greater_prefix(char *a, char *b, int alen, int blen)
+{
+  int i = 0;
+  char *result = NULL;
+
+  for(i=0; i<alen && i<blen && a[i] == b[i]; i++);
+  
+  /* i is the last common char position in a, or 0 */
+  if( i == 0 ) {
+    /**
+     * return ""
+     */
+    result = (char *)palloc(sizeof(char));
+  }
+  else {
+    result = (char *)palloc((i+1) * sizeof(char));
+    memcpy(result, a, i);
+  }
+  result[i] = 0;
+    
+  return result;
+}
+
 
 /**
  * First, the input reader. A prefix range will have to respect the
@@ -433,17 +459,6 @@ bool pr_gt(prefix_range *a, prefix_range *b, bool eqval) {
     return (eqval ? memcmp(p, q, mlen) >= 0 : memcmp(p, q, mlen) > 0);
 }
 
-/**
- * TODO
- *
- * right prefix range overlaps left one when any text prefixed by left
- * is known to be prefixed by any right prefix.
- */
-static inline
-bool pr_overlaps(prefix_range *left, prefix_range *right) {
-  return false;
-}
-
 static inline
 bool pr_contains(prefix_range *left, prefix_range *right, bool eqval) {
   int sl;
@@ -473,16 +488,6 @@ bool pr_contains(prefix_range *left, prefix_range *right, bool eqval) {
 }
 
 /**
- * TODO
- */
-static inline
-prefix_range *pr_union(prefix_range *a, prefix_range *b) {
-  prefix_range *res = NULL;
-
-  return res;
-}
-
-/**
  * does a given prefix_range includes a given prefix?
  */
 static inline
@@ -506,6 +511,81 @@ bool pr_contains_prefix(prefix_range *pr, text *query, bool eqval) {
   }
   return false;
 }
+
+static inline
+prefix_range *pr_union(prefix_range *a, prefix_range *b) {
+  prefix_range *res = NULL;
+  int alen = strlen(a->prefix);
+  int blen = strlen(b->prefix);
+  char *gp = NULL;
+  int gplen;
+  char min, max;
+
+  if( alen == 0 || blen == 0 ) {
+    res = build_pr("");
+    return res;
+  }
+
+  gp = __greater_prefix(a->prefix, b->prefix, alen, blen);
+  gplen = strlen(gp);
+
+  if( gplen == 0 ) {
+    res = build_pr("");
+    res->first = a->prefix[0];
+    res->last  = b->prefix[0];
+  }
+  else {
+    res = build_pr(gp);
+
+    if( gplen == alen && alen == blen ) {
+      res->first = a->first <= b->first ? a->first : b->first;
+      res->last  = a->last  >= b->last  ? a->last : b->last;
+    }
+    else if( gplen == alen ) {
+      Assert(alen < blen);
+      res->first = a->first <= b->prefix[alen] ? a->first : b->prefix[alen];
+      res->last  = a->last  >= b->prefix[alen] ? a->last  : b->prefix[alen];
+    }
+    else if( gplen == blen ) {
+      Assert(blen < alen);
+      res->first = b->first <= a->prefix[blen] ? b->first : a->prefix[blen];
+      res->last  = b->last  >= a->prefix[blen] ? b->last  : a->prefix[blen];
+    }
+    else {
+      Assert(gplen < alen && gplen < blen);
+      min = a->prefix[gplen];
+      max = b->prefix[gplen];
+
+      if( min > max ) {
+	min = b->prefix[gplen];
+	max = a->prefix[gplen];
+      }
+      res->first = min;
+      res->last  = max;
+    }
+  }
+  return res;
+}
+
+static inline
+prefix_range *pr_inter(prefix_range *a, prefix_range *b) {
+  prefix_range *res = NULL;
+  int alen = strlen(a->prefix);
+  int blen = strlen(b->prefix);
+
+  return res;
+}
+
+/**
+ * TODO
+ *
+ * true if ranges have at least one common element
+ */
+static inline
+bool pr_overlaps(prefix_range *left, prefix_range *right) {
+  return false;
+}
+
 
 
 PG_FUNCTION_INFO_V1(prefix_range_in);
@@ -703,6 +783,15 @@ prefix_range_contained_by_prefix(PG_FUNCTION_ARGS)
 				     PG_GETARG_TEXT_P(0),
 				     TRUE ));
 }
+
+PG_FUNCTION_INFO_V1(prefix_range_union);
+Datum
+prefix_range_union(PG_FUNCTION_ARGS)
+{
+  PG_RETURN_PREFIX_RANGE_P( pr_union(PG_GETARG_PREFIX_RANGE_P(0),
+				     PG_GETARG_PREFIX_RANGE_P(1)) );
+}
+
 
 /**
  * - Operator prefix @> query and query <@ prefix

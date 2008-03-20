@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.23 2008/03/19 21:42:08 dim Exp $
+ * $Id: prefix.c,v 1.24 2008/03/20 16:26:48 dim Exp $
  */
 
 #include <stdio.h>
@@ -23,6 +23,7 @@
 #include <math.h>
 
 #define  DEBUG
+#define  DEBUG_UNION
 /**
  * We use those DEBUG defines in the code, uncomment them to get very
  * verbose output.
@@ -153,7 +154,6 @@ char *__greater_prefix(char *a, char *b, int alen, int blen)
   return result;
 }
 
-
 /**
  * First, the input reader. A prefix range will have to respect the
  * following regular expression: .*([[].-.[]])? 
@@ -208,6 +208,18 @@ prefix_range *pr_normalize(prefix_range *a) {
     pr->last  = tmpswap;
   }
   return pr;
+}
+
+static inline
+prefix_range *pr_greater_prefix(prefix_range *a, prefix_range *b)
+{
+  int alen = strlen(a->prefix);
+  int blen = strlen(b->prefix);
+  char *ca = a->prefix;
+  char *cb = b->prefix;
+
+  prefix_range *out = build_pr(__greater_prefix(ca, cb, alen, blen));
+  return out;
 }
 
 static inline
@@ -867,6 +879,306 @@ prefix_range_inter(PG_FUNCTION_ARGS)
   PG_RETURN_PREFIX_RANGE_P( pr_inter(PG_GETARG_PREFIX_RANGE_P(0),
 				     PG_GETARG_PREFIX_RANGE_P(1)) );
 }
+
+/**
+ * GiST support methods
+ */
+Datum gpr_consistent(PG_FUNCTION_ARGS);
+Datum gpr_compress(PG_FUNCTION_ARGS);
+Datum gpr_decompress(PG_FUNCTION_ARGS);
+Datum gpr_penalty(PG_FUNCTION_ARGS);
+Datum gpr_picksplit(PG_FUNCTION_ARGS);
+Datum gpr_union(PG_FUNCTION_ARGS);
+Datum gpr_same(PG_FUNCTION_ARGS);
+
+PG_FUNCTION_INFO_V1(gpr_consistent);
+Datum
+gpr_consistent(PG_FUNCTION_ARGS)
+{
+    GISTENTRY *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+    prefix_range *query = PG_GETARG_PREFIX_RANGE_P(1);
+    StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
+    prefix_range *key = (prefix_range *) DatumGetPrefixRange(entry->key);
+    bool retval;
+
+    /**
+     * We only have 1 Strategy (operator @>)
+     * and we want to avoid compiler complaints that we do not use it.
+     */ 
+    Assert(strategy == 1);
+    (void) strategy;
+    retval = pr_contains(key, query, true);
+
+    PG_RETURN_BOOL(retval);
+}
+
+/*
+ * GiST Compress and Decompress methods for prefix_range
+ * do not do anything.
+ */
+PG_FUNCTION_INFO_V1(gpr_compress);
+Datum
+gpr_compress(PG_FUNCTION_ARGS)
+{
+    PG_RETURN_POINTER(PG_GETARG_POINTER(0));
+}
+
+PG_FUNCTION_INFO_V1(gpr_decompress);
+Datum
+gpr_decompress(PG_FUNCTION_ARGS)
+{
+    PG_RETURN_POINTER(PG_GETARG_POINTER(0));
+}
+
+static inline
+float __pr_penalty(prefix_range *orig, prefix_range *new)
+{
+  float penalty;
+  char *gp;
+  int  nlen, olen, gplen, dist = 0;
+
+  olen  = strlen(orig->prefix);
+  nlen  = strlen(new->prefix);
+  gp    = __greater_prefix(orig->prefix, new->prefix, olen, nlen);
+  gplen = strlen(gp);
+
+  /**
+   * greater_prefix length is orig length only if orig == gp
+   */
+  if( gplen == olen )
+    penalty = 0;
+
+  dist = 1;
+  if( nlen == olen ) {
+    dist    = abs((int)orig->prefix[olen-1] - (int)orig->prefix[nlen-1]);
+  }
+  penalty = (((float)dist) / powf(256, gplen));
+
+#ifdef DEBUG_PENALTY
+  elog(NOTICE, "__pr_penalty(%s, %s) == %d/(256^%d) == %g", 
+       DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(orig))),
+       DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(new))),
+       dist, gplen, penalty);
+#endif
+
+  return penalty;
+}
+
+PG_FUNCTION_INFO_V1(gpr_penalty);
+Datum
+gpr_penalty(PG_FUNCTION_ARGS)
+{
+  float penalty = __pr_penalty(PG_GETARG_PREFIX_RANGE_P(0),
+			       PG_GETARG_PREFIX_RANGE_P(1));
+  PG_RETURN_FLOAT4(penalty);
+}
+
+PG_FUNCTION_INFO_V1(gpr_picksplit);
+Datum
+gpr_picksplit(PG_FUNCTION_ARGS)
+{
+    GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
+    OffsetNumber maxoff = entryvec->n - 1;
+    GISTENTRY *ent      = entryvec->vector;
+    GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
+
+    int	nbytes;
+    OffsetNumber offl, offr;
+    OffsetNumber *listL;
+    OffsetNumber *listR;
+    prefix_range *curl, *curr, *gp;
+    prefix_range *unionL;
+    prefix_range *unionR;
+    
+    /**
+     * Keeping track of penalties to insert into ListL or ListR, for
+     * both the leftmost and the rightmost element of the remaining
+     * list.
+     */
+    float pll, plr, prl, prr;
+
+    nbytes = (maxoff + 1) * sizeof(OffsetNumber);
+    listL = (OffsetNumber *) palloc(nbytes);
+    listR = (OffsetNumber *) palloc(nbytes);
+    v->spl_left  = listL;
+    v->spl_right = listR;
+    v->spl_nleft = v->spl_nright = 0;
+
+    offl = FirstOffsetNumber;
+    offr = maxoff;
+
+    unionL = DatumGetPrefixRange(ent[offl].key);
+    unionR = DatumGetPrefixRange(ent[offr].key);
+
+    v->spl_left[v->spl_nleft++]   = offl;
+    v->spl_right[v->spl_nright++] = offr;
+    v->spl_left  = listL;
+    v->spl_right = listR;
+
+    offl = OffsetNumberNext(offl);
+    offr = OffsetNumberPrev(offr);
+
+    for(; offl < offr; offl = OffsetNumberNext(offl), offr = OffsetNumberPrev(offr)) {
+      curl = DatumGetPrefixRange(ent[offl].key);
+      curr = DatumGetPrefixRange(ent[offr].key);
+
+      Assert(curl != NULL && curr != NULL);
+
+      pll = __pr_penalty(unionL, curl);
+      plr = __pr_penalty(unionR, curl);
+      prl = __pr_penalty(unionL, curr);
+      prr = __pr_penalty(unionR, curr);
+
+      if( pll <= plr && prl >= prr ) {
+	/**
+	 * curl should go to left and curr to right, unless they share
+	 * a non-empty common prefix, in which case we place both curr
+	 * and curl on the same side. Arbitrarily the left one.
+	 */
+	if( pll == plr && prl == prr ) {
+	  gp = pr_greater_prefix(curl, curr);
+
+	  if( strlen(gp->prefix) > 0 ) {
+	    unionL  = pr_greater_prefix(unionL, gp);
+	    v->spl_left[v->spl_nleft++] = offl;
+	    v->spl_left[v->spl_nleft++] = offr;
+	    continue;
+	  }
+	}
+	/**
+	 * here pll <= plr and prl >= prr and (pll != plr || prl != prr)
+	 */
+	unionL = pr_greater_prefix(unionL, curl);
+	unionR = pr_greater_prefix(unionR, curr);
+
+	v->spl_left[v->spl_nleft++]   = offl;
+	v->spl_right[v->spl_nright++] = offr;
+      }
+      else if( pll > plr && prl >= prr ) {
+	unionR = pr_greater_prefix(unionR, curr);
+	v->spl_right[v->spl_nright++] = offr;
+      }
+      else if( pll <= plr && prl < prr ) {
+	/**
+	 * Current leftmost entry is added to listL
+	 */
+	unionL = pr_greater_prefix(unionL, curl);
+	v->spl_left[v->spl_nleft++] = offl;
+      }
+      else if( (pll - plr) < (prr - prl) ) {
+	/**
+	 * All entries still in the list go into listL
+	 */
+	for(; offl <= maxoff; offl = OffsetNumberNext(offl)) {
+	  curl   = PrefixRangeGetDatum(ent[offl].key);
+	  unionL = pr_greater_prefix(unionL, curl);
+	  v->spl_left[v->spl_nleft++] = offl;
+	}
+      }
+      else {
+	/**
+	 * All entries still in the list go into listR
+	 */
+	for(; offl <= maxoff; offl = OffsetNumberNext(offl)) {
+	  curl   = PrefixRangeGetDatum(ent[offl].key);
+	  unionR = pr_greater_prefix(unionR, curl);
+	  v->spl_right[v->spl_nright++] = offl;
+	}
+      }
+    }
+
+    /**
+     * The for loop continues while offl < offr. If maxoff is odd, it
+     * could be that there's a last value to process. Here we choose
+     * where to add it.
+     */
+    if( offl == offr ) {
+      curl = PrefixRangeGetDatum(ent[offl].key);
+      pll  = __pr_penalty(unionL, curl);
+      plr  = __pr_penalty(unionR, curl);
+
+      if( pll < plr || (pll == plr && v->spl_nleft < v->spl_nright) ) {
+	curl       = PrefixRangeGetDatum(ent[offl].key);
+	unionL     = pr_greater_prefix(unionL, curl);
+	v->spl_left[v->spl_nleft++] = offl;
+      }
+      else {
+	curl       = PrefixRangeGetDatum(ent[offl].key);
+	unionR     = pr_greater_prefix(unionR, curl);
+	v->spl_right[v->spl_nright++] = offl;
+      }
+    }
+
+    v->spl_ldatum = PointerGetDatum(make_varlena(unionL));
+    v->spl_rdatum = PointerGetDatum(make_varlena(unionR));
+
+    /**
+     * All read entries (maxoff) should have make it to the
+     * GIST_SPLITVEC return value.
+     */
+    Assert(maxoff = v->spl_nleft+v->spl_nright);
+
+#ifdef DEBUG
+    elog(NOTICE, "gpr_picksplit(): entryvec->n=%4d maxoff=%4d l=%4d r=%4d l+r=%4d unionL=%s unionR=%s",
+	 entryvec->n, maxoff, v->spl_nleft, v->spl_nright, v->spl_nleft+v->spl_nright,
+	 DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(unionL))),
+	 DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(unionR))));
+#endif
+	
+    PG_RETURN_POINTER(v);
+}
+
+PG_FUNCTION_INFO_V1(gpr_union);
+Datum
+gpr_union(PG_FUNCTION_ARGS)
+{
+    GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
+    GISTENTRY *ent = entryvec->vector;
+
+    prefix_range *out, *tmp;
+    int	numranges, i = 0;
+
+    numranges = entryvec->n;
+    tmp = DatumGetPrefixRange(ent[0].key);
+    out = tmp;
+
+    if( numranges == 1 ) {
+      out = build_pr(tmp->prefix);
+      out->first = tmp->first;
+      out->last  = tmp->last;
+
+      PG_RETURN_PREFIX_RANGE_P(out);
+    }
+  
+    for (i = 1; i < numranges; i++) {
+      tmp = DatumGetPrefixRange(ent[i].key);
+      out = pr_union(out, tmp);
+    }
+
+#ifdef DEBUG_UNION
+    elog(NOTICE, "gpr_union: %s[%c-%c] %s", 
+	 out->prefix, 
+	 (out->first != 0 ? out->first : ' '),
+	 (out->last  != 0 ? out->last  : ' '),
+	 DatumGetCString(DirectFunctionCall1(prefix_range_out,
+					     PrefixRangeGetDatum(out))));
+#endif
+    PG_RETURN_POINTER(make_varlena(out));
+}
+
+PG_FUNCTION_INFO_V1(gpr_same);
+Datum
+gpr_same(PG_FUNCTION_ARGS)
+{
+    prefix_range *v1 = PG_GETARG_PREFIX_RANGE_P(0);
+    prefix_range *v2 = PG_GETARG_PREFIX_RANGE_P(1);
+    bool *result = (bool *) PG_GETARG_POINTER(2);
+
+    *result = pr_eq(v1, v2);
+    PG_RETURN_POINTER( result );
+}
+
+
 
 
 /**

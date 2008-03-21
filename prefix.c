@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.24 2008/03/20 16:26:48 dim Exp $
+ * $Id: prefix.c,v 1.25 2008/03/21 20:57:54 dim Exp $
  */
 
 #include <stdio.h>
@@ -1070,7 +1070,7 @@ gpr_picksplit(PG_FUNCTION_ARGS)
 	 * All entries still in the list go into listL
 	 */
 	for(; offl <= maxoff; offl = OffsetNumberNext(offl)) {
-	  curl   = PrefixRangeGetDatum(ent[offl].key);
+	  curl   = DatumGetPrefixRange(ent[offl].key);
 	  unionL = pr_greater_prefix(unionL, curl);
 	  v->spl_left[v->spl_nleft++] = offl;
 	}
@@ -1080,7 +1080,7 @@ gpr_picksplit(PG_FUNCTION_ARGS)
 	 * All entries still in the list go into listR
 	 */
 	for(; offl <= maxoff; offl = OffsetNumberNext(offl)) {
-	  curl   = PrefixRangeGetDatum(ent[offl].key);
+	  curl   = DatumGetPrefixRange(ent[offl].key);
 	  unionR = pr_greater_prefix(unionR, curl);
 	  v->spl_right[v->spl_nright++] = offl;
 	}
@@ -1093,17 +1093,17 @@ gpr_picksplit(PG_FUNCTION_ARGS)
      * where to add it.
      */
     if( offl == offr ) {
-      curl = PrefixRangeGetDatum(ent[offl].key);
+      curl = DatumGetPrefixRange(ent[offl].key);
       pll  = __pr_penalty(unionL, curl);
       plr  = __pr_penalty(unionR, curl);
 
       if( pll < plr || (pll == plr && v->spl_nleft < v->spl_nright) ) {
-	curl       = PrefixRangeGetDatum(ent[offl].key);
+	curl       = DatumGetPrefixRange(ent[offl].key);
 	unionL     = pr_greater_prefix(unionL, curl);
 	v->spl_left[v->spl_nleft++] = offl;
       }
       else {
-	curl       = PrefixRangeGetDatum(ent[offl].key);
+	curl       = DatumGetPrefixRange(ent[offl].key);
 	unionR     = pr_greater_prefix(unionR, curl);
 	v->spl_right[v->spl_nright++] = offl;
       }
@@ -1163,7 +1163,7 @@ gpr_union(PG_FUNCTION_ARGS)
 	 DatumGetCString(DirectFunctionCall1(prefix_range_out,
 					     PrefixRangeGetDatum(out))));
 #endif
-    PG_RETURN_POINTER(make_varlena(out));
+    PG_RETURN_POINTER(DatumGetPointer(PointerGetDatum(make_varlena(out))));
 }
 
 PG_FUNCTION_INFO_V1(gpr_same);

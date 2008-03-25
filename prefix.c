@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.25 2008/03/21 20:57:54 dim Exp $
+ * $Id: prefix.c,v 1.26 2008/03/25 16:02:52 dim Exp $
  */
 
 #include <stdio.h>
@@ -211,18 +211,6 @@ prefix_range *pr_normalize(prefix_range *a) {
 }
 
 static inline
-prefix_range *pr_greater_prefix(prefix_range *a, prefix_range *b)
-{
-  int alen = strlen(a->prefix);
-  int blen = strlen(b->prefix);
-  char *ca = a->prefix;
-  char *cb = b->prefix;
-
-  prefix_range *out = build_pr(__greater_prefix(ca, cb, alen, blen));
-  return out;
-}
-
-static inline
 prefix_range *pr_from_str(char *str) {
   prefix_range *pr = NULL;
   char *prefix = (char *)palloc(strlen(str)+1);
@@ -376,12 +364,13 @@ struct varlena *make_varlena(prefix_range *pr) {
     memcpy(VARDATA(vdat), pr, size - VARHDRSZ);
 
 #ifdef DEBUG_MAKE_VARLENA
-    elog(NOTICE, "make varlena: %d %d %s %c %c",
-	 sizeof(pr->prefix),
-	 strlen(pr->prefix)+1,
+    elog(NOTICE, "make varlena: %s[%c-%c] %s[%c-%c]",
+	 pr->prefix,
+	 (pr->first != 0 ? pr->first : ' '),
+	 (pr->last  != 0 ? pr->last  : ' '),
 	 ((prefix_range *)VARDATA(vdat))->prefix,
-	 ((prefix_range *)VARDATA(vdat))->first,
-	 ((prefix_range *)VARDATA(vdat))->last);
+	 (((prefix_range *)VARDATA(vdat))->first ? ((prefix_range *)VARDATA(vdat))->first : ' '),
+	 (((prefix_range *)VARDATA(vdat))->last  ? ((prefix_range *)VARDATA(vdat))->last  : ' '));
 #endif
 
     return vdat;
@@ -986,7 +975,7 @@ gpr_picksplit(PG_FUNCTION_ARGS)
     OffsetNumber offl, offr;
     OffsetNumber *listL;
     OffsetNumber *listR;
-    prefix_range *curl, *curr, *gp;
+    prefix_range *curl, *curr, *tmp_union;
     prefix_range *unionL;
     prefix_range *unionR;
     
@@ -1036,10 +1025,10 @@ gpr_picksplit(PG_FUNCTION_ARGS)
 	 * and curl on the same side. Arbitrarily the left one.
 	 */
 	if( pll == plr && prl == prr ) {
-	  gp = pr_greater_prefix(curl, curr);
+	  tmp_union = pr_union(curl, curr);
 
-	  if( strlen(gp->prefix) > 0 ) {
-	    unionL  = pr_greater_prefix(unionL, gp);
+	  if( strlen(tmp_union->prefix) > 0 ) {
+	    unionL = pr_union(unionL, tmp_union);
 	    v->spl_left[v->spl_nleft++] = offl;
 	    v->spl_left[v->spl_nleft++] = offr;
 	    continue;
@@ -1048,21 +1037,21 @@ gpr_picksplit(PG_FUNCTION_ARGS)
 	/**
 	 * here pll <= plr and prl >= prr and (pll != plr || prl != prr)
 	 */
-	unionL = pr_greater_prefix(unionL, curl);
-	unionR = pr_greater_prefix(unionR, curr);
+	unionL = pr_union(unionL, curl);
+	unionR = pr_union(unionR, curr);
 
 	v->spl_left[v->spl_nleft++]   = offl;
 	v->spl_right[v->spl_nright++] = offr;
       }
       else if( pll > plr && prl >= prr ) {
-	unionR = pr_greater_prefix(unionR, curr);
+	unionR = pr_union(unionR, curr);
 	v->spl_right[v->spl_nright++] = offr;
       }
       else if( pll <= plr && prl < prr ) {
 	/**
 	 * Current leftmost entry is added to listL
 	 */
-	unionL = pr_greater_prefix(unionL, curl);
+	unionL = pr_union(unionL, curl);
 	v->spl_left[v->spl_nleft++] = offl;
       }
       else if( (pll - plr) < (prr - prl) ) {
@@ -1071,7 +1060,7 @@ gpr_picksplit(PG_FUNCTION_ARGS)
 	 */
 	for(; offl <= maxoff; offl = OffsetNumberNext(offl)) {
 	  curl   = DatumGetPrefixRange(ent[offl].key);
-	  unionL = pr_greater_prefix(unionL, curl);
+	  unionL = pr_union(unionL, curl);
 	  v->spl_left[v->spl_nleft++] = offl;
 	}
       }
@@ -1081,7 +1070,7 @@ gpr_picksplit(PG_FUNCTION_ARGS)
 	 */
 	for(; offl <= maxoff; offl = OffsetNumberNext(offl)) {
 	  curl   = DatumGetPrefixRange(ent[offl].key);
-	  unionR = pr_greater_prefix(unionR, curl);
+	  unionR = pr_union(unionR, curl);
 	  v->spl_right[v->spl_nright++] = offl;
 	}
       }
@@ -1099,18 +1088,18 @@ gpr_picksplit(PG_FUNCTION_ARGS)
 
       if( pll < plr || (pll == plr && v->spl_nleft < v->spl_nright) ) {
 	curl       = DatumGetPrefixRange(ent[offl].key);
-	unionL     = pr_greater_prefix(unionL, curl);
+	unionL     = pr_union(unionL, curl);
 	v->spl_left[v->spl_nleft++] = offl;
       }
       else {
 	curl       = DatumGetPrefixRange(ent[offl].key);
-	unionR     = pr_greater_prefix(unionR, curl);
+	unionR     = pr_union(unionR, curl);
 	v->spl_right[v->spl_nright++] = offl;
       }
     }
 
-    v->spl_ldatum = PointerGetDatum(make_varlena(unionL));
-    v->spl_rdatum = PointerGetDatum(make_varlena(unionR));
+    v->spl_ldatum = PrefixRangeGetDatum(unionL);
+    v->spl_rdatum = PrefixRangeGetDatum(unionR);
 
     /**
      * All read entries (maxoff) should have make it to the
@@ -1119,10 +1108,14 @@ gpr_picksplit(PG_FUNCTION_ARGS)
     Assert(maxoff = v->spl_nleft+v->spl_nright);
 
 #ifdef DEBUG
-    elog(NOTICE, "gpr_picksplit(): entryvec->n=%4d maxoff=%4d l=%4d r=%4d l+r=%4d unionL=%s unionR=%s",
+    elog(NOTICE, "gpr_picksplit(): entryvec->n=%4d maxoff=%4d l=%4d r=%4d l+r=%4d unionL='%s' unionR='%s'",
 	 entryvec->n, maxoff, v->spl_nleft, v->spl_nright, v->spl_nleft+v->spl_nright,
 	 DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(unionL))),
 	 DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(unionR))));
+
+    elog(NOTICE, "gpr_picksplit(): v->spl_ldatum='%s' v->spl_rdatum='%s'",
+	 DatumGetCString(DirectFunctionCall1(prefix_range_out, v->spl_ldatum)),
+	 DatumGetCString(DirectFunctionCall1(prefix_range_out, v->spl_rdatum)));
 #endif
 	
     PG_RETURN_POINTER(v);
@@ -1163,7 +1156,7 @@ gpr_union(PG_FUNCTION_ARGS)
 	 DatumGetCString(DirectFunctionCall1(prefix_range_out,
 					     PrefixRangeGetDatum(out))));
 #endif
-    PG_RETURN_POINTER(DatumGetPointer(PointerGetDatum(make_varlena(out))));
+    PG_RETURN_PREFIX_RANGE_P(out);
 }
 
 PG_FUNCTION_INFO_V1(gpr_same);

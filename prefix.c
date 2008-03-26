@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.26 2008/03/25 16:02:52 dim Exp $
+ * $Id: prefix.c,v 1.27 2008/03/26 11:07:56 dim Exp $
  */
 
 #include <stdio.h>
@@ -24,6 +24,7 @@
 
 #define  DEBUG
 #define  DEBUG_UNION
+#define  DEBUG_MAKE_VARLENA
 /**
  * We use those DEBUG defines in the code, uncomment them to get very
  * verbose output.
@@ -56,7 +57,7 @@ PG_MODULE_MAGIC;
 #define PREFIX_VARSIZE(x)        (VARSIZE(x) - VARHDRSZ)
 #define PREFIX_VARDATA(x)        (VARDATA(x))
 #define PREFIX_PG_GETARG_TEXT(x) (PG_GETARG_TEXT_P(x))
-#define PREFIX_SET_VARSIZE(p, s) (VARATT_SIZEP(p) = s + VARHDRSZ)
+#define PREFIX_SET_VARSIZE(p, s) (VARATT_SIZEP(p) = s)
 
 #else
 #define PREFIX_VARSIZE(x)        (VARSIZE_ANY_EXHDR(x))
@@ -358,13 +359,17 @@ struct varlena *make_varlena(prefix_range *pr) {
   int size;
   
   if (pr != NULL) {
-    size = sizeof(prefix_range) + strlen(pr->prefix)+1 + VARHDRSZ;
+    size = sizeof(prefix_range) + ((strlen(pr->prefix)+1)*sizeof(char)) + VARHDRSZ;
     vdat = palloc(size);
     PREFIX_SET_VARSIZE(vdat, size);
-    memcpy(VARDATA(vdat), pr, size - VARHDRSZ);
+    memcpy(VARDATA(vdat), pr, (size - VARHDRSZ));
 
 #ifdef DEBUG_MAKE_VARLENA
-    elog(NOTICE, "make varlena: %s[%c-%c] %s[%c-%c]",
+    elog(NOTICE, "make varlena: size=%d varsize=%d compressed=%c external=%c %s[%c-%c] %s[%c-%c]",
+	 size,
+	 PREFIX_VARSIZE(vdat),
+	 (VARATT_IS_COMPRESSED(vdat) ? 't' : 'f'),
+	 (VARATT_IS_EXTERNAL(vdat)   ? 't' : 'f'),
 	 pr->prefix,
 	 (pr->first != 0 ? pr->first : ' '),
 	 (pr->last  != 0 ? pr->last  : ' '),
@@ -986,6 +991,10 @@ gpr_picksplit(PG_FUNCTION_ARGS)
      */
     float pll, plr, prl, prr;
 
+#ifdef DEBUG
+    elog(NOTICE, "gpr_picksplit(): entering");
+#endif
+
     nbytes = (maxoff + 1) * sizeof(OffsetNumber);
     listL = (OffsetNumber *) palloc(nbytes);
     listR = (OffsetNumber *) palloc(nbytes);
@@ -1110,10 +1119,6 @@ gpr_picksplit(PG_FUNCTION_ARGS)
 #ifdef DEBUG
     elog(NOTICE, "gpr_picksplit(): entryvec->n=%4d maxoff=%4d l=%4d r=%4d l+r=%4d unionL='%s' unionR='%s'",
 	 entryvec->n, maxoff, v->spl_nleft, v->spl_nright, v->spl_nleft+v->spl_nright,
-	 DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(unionL))),
-	 DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(unionR))));
-
-    elog(NOTICE, "gpr_picksplit(): v->spl_ldatum='%s' v->spl_rdatum='%s'",
 	 DatumGetCString(DirectFunctionCall1(prefix_range_out, v->spl_ldatum)),
 	 DatumGetCString(DirectFunctionCall1(prefix_range_out, v->spl_rdatum)));
 #endif

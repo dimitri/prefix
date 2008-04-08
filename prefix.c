@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.27 2008/03/26 11:07:56 dim Exp $
+ * $Id: prefix.c,v 1.28 2008/04/08 14:02:15 dim Exp $
  */
 
 #include <stdio.h>
@@ -23,8 +23,7 @@
 #include <math.h>
 
 #define  DEBUG
-#define  DEBUG_UNION
-#define  DEBUG_MAKE_VARLENA
+#define  DEBUG_PENALTY
 /**
  * We use those DEBUG defines in the code, uncomment them to get very
  * verbose output.
@@ -930,21 +929,51 @@ float __pr_penalty(prefix_range *orig, prefix_range *new)
   float penalty;
   char *gp;
   int  nlen, olen, gplen, dist = 0;
+  char tmp;
 
   olen  = strlen(orig->prefix);
   nlen  = strlen(new->prefix);
   gp    = __greater_prefix(orig->prefix, new->prefix, olen, nlen);
   gplen = strlen(gp);
 
-  /**
-   * greater_prefix length is orig length only if orig == gp
-   */
-  if( gplen == olen )
-    penalty = 0;
+  dist  = 1;
 
-  dist = 1;
-  if( nlen == olen ) {
-    dist    = abs((int)orig->prefix[olen-1] - (int)orig->prefix[nlen-1]);
+  if( 0 == olen && 0 == nlen ) {
+    if( orig->last >= new->first )
+      dist = 0;
+    else
+      dist = new->first - orig->last;
+  }
+  else if( 0 == olen ) {
+    /**
+     * penalty('[a-b]', 'xyz');
+     */
+    if( orig->first != 0 ) {
+      tmp = new->prefix[0];
+
+      if( orig->first <= tmp && tmp <= orig->last )
+	dist = 0;
+      else
+	dist = (orig->first > tmp ? orig->first - tmp  : tmp - orig->last );
+    }
+  }
+  else if( 0 == nlen ) {
+    /**
+     * penalty('abc', '[x-y]');
+     */
+    if( new->first != 0 ) {
+      tmp = orig->prefix[0];
+
+      if( new->first <= tmp && tmp <= new->last )
+	dist = 0;
+      else
+	dist = (new->first > tmp ? new->first - tmp  : tmp - new->last );
+    }
+  }
+  else {
+    if( nlen == olen ) {
+      dist = abs((int)orig->prefix[olen-1] - (int)new->prefix[nlen-1]);
+    }
   }
   penalty = (((float)dist) / powf(256, gplen));
 
@@ -990,10 +1019,6 @@ gpr_picksplit(PG_FUNCTION_ARGS)
      * list.
      */
     float pll, plr, prl, prr;
-
-#ifdef DEBUG
-    elog(NOTICE, "gpr_picksplit(): entering");
-#endif
 
     nbytes = (maxoff + 1) * sizeof(OffsetNumber);
     listL = (OffsetNumber *) palloc(nbytes);
@@ -1133,7 +1158,7 @@ gpr_union(PG_FUNCTION_ARGS)
     GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
     GISTENTRY *ent = entryvec->vector;
 
-    prefix_range *out, *tmp;
+    prefix_range *out, *tmp, *old;
     int	numranges, i = 0;
 
     numranges = entryvec->n;
@@ -1150,17 +1175,24 @@ gpr_union(PG_FUNCTION_ARGS)
   
     for (i = 1; i < numranges; i++) {
       tmp = DatumGetPrefixRange(ent[i].key);
+      old = out;
       out = pr_union(out, tmp);
-    }
 
 #ifdef DEBUG_UNION
-    elog(NOTICE, "gpr_union: %s[%c-%c] %s", 
-	 out->prefix, 
-	 (out->first != 0 ? out->first : ' '),
-	 (out->last  != 0 ? out->last  : ' '),
+    elog(NOTICE, "gpr_union: %s | %s = %s",
+	 DatumGetCString(DirectFunctionCall1(prefix_range_out, PrefixRangeGetDatum(old))),
+	 DatumGetCString(DirectFunctionCall1(prefix_range_out, PrefixRangeGetDatum(tmp))),
+	 DatumGetCString(DirectFunctionCall1(prefix_range_out, PrefixRangeGetDatum(out))));
+#endif
+    }
+
+    /*
+#ifdef DEBUG_UNION
+    elog(NOTICE, "gpr_union: %s", 
 	 DatumGetCString(DirectFunctionCall1(prefix_range_out,
 					     PrefixRangeGetDatum(out))));
 #endif
+    */
     PG_RETURN_PREFIX_RANGE_P(out);
 }
 

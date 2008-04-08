@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.28 2008/04/08 14:02:15 dim Exp $
+ * $Id: prefix.c,v 1.29 2008/04/08 16:10:11 dim Exp $
  */
 
 #include <stdio.h>
@@ -951,8 +951,13 @@ float __pr_penalty(prefix_range *orig, prefix_range *new)
     if( orig->first != 0 ) {
       tmp = new->prefix[0];
 
-      if( orig->first <= tmp && tmp <= orig->last )
-	dist = 0;
+      if( orig->first <= tmp && tmp <= orig->last ) {
+	gplen = 1;
+
+	dist = 1 + (int)tmp - (int)orig->first;
+	if( (1 + (int)orig->last - (int)tmp) < dist )
+	  dist = 1 + (int)orig->last - (int)tmp;
+      }
       else
 	dist = (orig->first > tmp ? orig->first - tmp  : tmp - orig->last );
     }
@@ -964,16 +969,62 @@ float __pr_penalty(prefix_range *orig, prefix_range *new)
     if( new->first != 0 ) {
       tmp = orig->prefix[0];
 
-      if( new->first <= tmp && tmp <= new->last )
-	dist = 0;
+      if( new->first <= tmp && tmp <= new->last ) {
+	gplen = 1;
+
+	dist = 1 + (int)tmp - (int)new->first;
+	if( (1 + (int)new->last - (int)tmp) < dist )
+	  dist = 1 + (int)new->last - (int)tmp;
+      }
       else
 	dist = (new->first > tmp ? new->first - tmp  : tmp - new->last );
     }
   }
   else {
-    if( nlen == olen ) {
-      dist = abs((int)orig->prefix[olen-1] - (int)new->prefix[nlen-1]);
+    /**
+     * General case
+     */
+
+    if( gplen > 0 ) {
+      if( olen > gplen && nlen == gplen && new->first != 0 ) {
+	/**
+	 * gpr_penalty('abc[f-l]', 'ab[x-y]')
+	 */
+	if( new->first <= orig->prefix[gplen]
+	    && orig->prefix[gplen] <= new->last ) {
+
+	  gplen += 1;
+	  dist   = 1 + (int)orig->prefix[gplen] - (int)new->first;
+	  
+	  if( (1 + (int)new->last - (int)orig->prefix[gplen]) < dist )
+	    dist = 1 + (int)new->last - (int)orig->prefix[gplen];
+	}
+	else {
+	  dist += 1;
+	}
+      }
+      else if( nlen > gplen && olen == gplen && orig->first != 0 ) {
+	/**
+	 * gpr_penalty('ab[f-l]', 'abc[x-y]')
+	 */
+	if( orig->first <= new->prefix[gplen]
+	    && new->prefix[gplen] <= orig->last ) {
+
+	  gplen += 1;
+	  dist   = 1 + (int)new->prefix[gplen] - (int)orig->first;
+	  
+	  if( (1 + (int)orig->last - (int)new->prefix[gplen]) < dist )
+	    dist = 1 + (int)orig->last - (int)new->prefix[gplen];
+	}
+	else {
+	  dist += 1;
+	}
+      }	
     }
+    /**
+     * penalty('abc[f-l]', 'xyz[g-m]'), nothing common
+     * dist = 1, gplen = 0, penalty = 1
+     */
   }
   penalty = (((float)dist) / powf(256, gplen));
 

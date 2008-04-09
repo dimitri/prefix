@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.31 2008/04/09 13:25:32 dim Exp $
+ * $Id: prefix.c,v 1.32 2008/04/09 16:09:07 dim Exp $
  */
 
 #include <stdio.h>
@@ -1108,10 +1108,18 @@ gpr_picksplit(PG_FUNCTION_ARGS)
       curr = DatumGetPrefixRange(ent[offr].key);
 
       Assert(curl != NULL && curr != NULL);
+
       if( curl->prefix[0] != 0 )
 	Assert(curl->prefix[0] >= '0' && curl->prefix[0] <= '9');
+
       if( curr->prefix[0] != 0 )
 	Assert(curr->prefix[0] >= '0' && curr->prefix[0] <= '9');
+
+      if( unionL->prefix[0] != 0 )
+	Assert(unionL->prefix[0] >= '0' && unionL->prefix[0] <= '9');
+
+      if( unionR->prefix[0] != 0 )
+	Assert(unionR->prefix[0] >= '0' && unionR->prefix[0] <= '9');
 
       pll = __pr_penalty(unionL, curl);
       plr = __pr_penalty(unionR, curl);
@@ -1183,6 +1191,16 @@ gpr_picksplit(PG_FUNCTION_ARGS)
      */
     if( offl == offr ) {
       curl = DatumGetPrefixRange(ent[offl].key);
+
+      if( curl->prefix[0] != 0 )
+	Assert(curl->prefix[0] >= '0' && curl->prefix[0] <= '9');
+
+      if( unionL->prefix[0] != 0 )
+	Assert(unionL->prefix[0] >= '0' && unionL->prefix[0] <= '9');
+
+      if( unionR->prefix[0] != 0 )
+	Assert(unionR->prefix[0] >= '0' && unionR->prefix[0] <= '9');
+
       pll  = __pr_penalty(unionL, curl);
       plr  = __pr_penalty(unionR, curl);
 
@@ -1197,6 +1215,12 @@ gpr_picksplit(PG_FUNCTION_ARGS)
 	v->spl_right[v->spl_nright++] = offl;
       }
     }
+
+    if( unionL->prefix[0] != 0 )
+      Assert(unionL->prefix[0] >= '0' && unionL->prefix[0] <= '9');
+
+    if( unionR->prefix[0] != 0 )
+      Assert(unionR->prefix[0] >= '0' && unionR->prefix[0] <= '9');
 
     v->spl_ldatum = PrefixRangeGetDatum(unionL);
     v->spl_rdatum = PrefixRangeGetDatum(unionR);

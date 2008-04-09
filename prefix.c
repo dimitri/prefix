@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.30 2008/04/09 13:01:56 dim Exp $
+ * $Id: prefix.c,v 1.31 2008/04/09 13:25:32 dim Exp $
  */
 
 #include <stdio.h>
@@ -934,9 +934,10 @@ float __pr_penalty(prefix_range *orig, prefix_range *new)
 
   if( orig->prefix[0] != 0 ) {
 #ifdef DEBUG
-  elog(NOTICE, "__pr_penalty(%s, %s)", 
+  elog(NOTICE, "__pr_penalty(%s, %s) orig->first=%d orig->last=%d ", 
        DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(orig))),
-       DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(new))));
+       DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(new))),
+       orig->first, orig->last);
 #endif
     Assert(orig->prefix[0] >= '0' && orig->prefix[0] <= '9');
   }

@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.29 2008/04/08 16:10:11 dim Exp $
+ * $Id: prefix.c,v 1.30 2008/04/09 13:01:56 dim Exp $
  */
 
 #include <stdio.h>
@@ -23,6 +23,7 @@
 #include <math.h>
 
 #define  DEBUG
+#define  DEBUG_UNION
 #define  DEBUG_PENALTY
 /**
  * We use those DEBUG defines in the code, uncomment them to get very
@@ -931,6 +932,15 @@ float __pr_penalty(prefix_range *orig, prefix_range *new)
   int  nlen, olen, gplen, dist = 0;
   char tmp;
 
+  if( orig->prefix[0] != 0 ) {
+#ifdef DEBUG
+  elog(NOTICE, "__pr_penalty(%s, %s)", 
+       DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(orig))),
+       DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(new))));
+#endif
+    Assert(orig->prefix[0] >= '0' && orig->prefix[0] <= '9');
+  }
+
   olen  = strlen(orig->prefix);
   nlen  = strlen(new->prefix);
   gp    = __greater_prefix(orig->prefix, new->prefix, olen, nlen);
@@ -993,11 +1003,11 @@ float __pr_penalty(prefix_range *orig, prefix_range *new)
 	if( new->first <= orig->prefix[gplen]
 	    && orig->prefix[gplen] <= new->last ) {
 
-	  gplen += 1;
-	  dist   = 1 + (int)orig->prefix[gplen] - (int)new->first;
-	  
+	  dist   = 1 + (int)orig->prefix[gplen] - (int)new->first;	  
 	  if( (1 + (int)new->last - (int)orig->prefix[gplen]) < dist )
 	    dist = 1 + (int)new->last - (int)orig->prefix[gplen];
+
+	  gplen += 1;
 	}
 	else {
 	  dist += 1;
@@ -1010,11 +1020,11 @@ float __pr_penalty(prefix_range *orig, prefix_range *new)
 	if( orig->first <= new->prefix[gplen]
 	    && new->prefix[gplen] <= orig->last ) {
 
-	  gplen += 1;
 	  dist   = 1 + (int)new->prefix[gplen] - (int)orig->first;
-	  
 	  if( (1 + (int)orig->last - (int)new->prefix[gplen]) < dist )
 	    dist = 1 + (int)orig->last - (int)new->prefix[gplen];
+
+	  gplen += 1;
 	}
 	else {
 	  dist += 1;
@@ -1097,6 +1107,10 @@ gpr_picksplit(PG_FUNCTION_ARGS)
       curr = DatumGetPrefixRange(ent[offr].key);
 
       Assert(curl != NULL && curr != NULL);
+      if( curl->prefix[0] != 0 )
+	Assert(curl->prefix[0] >= '0' && curl->prefix[0] <= '9');
+      if( curr->prefix[0] != 0 )
+	Assert(curr->prefix[0] >= '0' && curr->prefix[0] <= '9');
 
       pll = __pr_penalty(unionL, curl);
       plr = __pr_penalty(unionR, curl);

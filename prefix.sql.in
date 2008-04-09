@@ -293,6 +293,11 @@ RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE 'C' STRICT;
 
+CREATE OR REPLACE FUNCTION gpr_penalty(prefix_range, prefix_range)
+RETURNS float4
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' STRICT;
+
 CREATE OR REPLACE FUNCTION gpr_picksplit(internal, internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'

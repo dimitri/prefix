@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.32 2008/04/09 16:09:07 dim Exp $
+ * $Id: prefix.c,v 1.33 2008/04/09 19:05:53 dim Exp $
  */
 
 #include <stdio.h>
@@ -876,6 +876,8 @@ prefix_range_inter(PG_FUNCTION_ARGS)
 
 /**
  * GiST support methods
+ *
+ * pr_penalty allows SQL level penalty code testing.
  */
 Datum gpr_consistent(PG_FUNCTION_ARGS);
 Datum gpr_compress(PG_FUNCTION_ARGS);
@@ -884,6 +886,7 @@ Datum gpr_penalty(PG_FUNCTION_ARGS);
 Datum gpr_picksplit(PG_FUNCTION_ARGS);
 Datum gpr_union(PG_FUNCTION_ARGS);
 Datum gpr_same(PG_FUNCTION_ARGS);
+Datum pr_penalty(PG_FUNCTION_ARGS);
 
 PG_FUNCTION_INFO_V1(gpr_consistent);
 Datum
@@ -1052,6 +1055,21 @@ float __pr_penalty(prefix_range *orig, prefix_range *new)
 PG_FUNCTION_INFO_V1(gpr_penalty);
 Datum
 gpr_penalty(PG_FUNCTION_ARGS)
+{
+  GISTENTRY *origentry = (GISTENTRY *) PG_GETARG_POINTER(0);
+  GISTENTRY *newentry = (GISTENTRY *) PG_GETARG_POINTER(1);
+  float *penalty = (float *) PG_GETARG_POINTER(2);
+  
+  prefix_range *orig = DatumGetPrefixRange(origentry->key);
+  prefix_range *new  = DatumGetPrefixRange(newentry->key);
+
+  *penalty = __pr_penalty(orig, new);
+  PG_RETURN_POINTER(penalty);
+}
+
+PG_FUNCTION_INFO_V1(pr_penalty);
+Datum
+pr_penalty(PG_FUNCTION_ARGS)
 {
   float penalty = __pr_penalty(PG_GETARG_PREFIX_RANGE_P(0),
 			       PG_GETARG_PREFIX_RANGE_P(1));

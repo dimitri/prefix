@@ -293,7 +293,7 @@ RETURNS internal
 AS 'MODULE_PATHNAME'
 LANGUAGE 'C' STRICT;
 
-CREATE OR REPLACE FUNCTION gpr_penalty(prefix_range, prefix_range)
+CREATE OR REPLACE FUNCTION pr_penalty(prefix_range, prefix_range)
 RETURNS float4
 AS 'MODULE_PATHNAME'
 LANGUAGE 'C' STRICT;
@@ -382,7 +382,7 @@ COMMENT ON AGGREGATE greater_prefix(text) IS 'greater prefix aggregate';
 -- prefix penalty, for testing purpose
 --
 CREATE OR REPLACE FUNCTION prefix_penalty(text, text)
-RETURNS float
+RETURNS float4
 AS 'MODULE_PATHNAME'
 LANGUAGE 'C' IMMUTABLE STRICT;
 

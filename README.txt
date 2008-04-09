@@ -90,7 +90,7 @@ Those queries should return the same line, but it fails with
 We want +gpr_penalty+ result to be the lower when its second argument
 is the nearest of the first.
 
-  select a, b, gpr_penalty(a::prefix_range, b::prefix_range)
+  select a, b, pr_penalty(a::prefix_range, b::prefix_range)
     from (values('095[4-5]', '0[8-9]'),
                 ('095[4-5]', '0[0-9]'),
 		('095[4-5]', '[0-3]'), 

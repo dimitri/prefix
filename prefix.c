@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.36 2008/04/10 13:19:37 dim Exp $
+ * $Id: prefix.c,v 1.37 2008/04/10 15:59:27 dim Exp $
  */
 
 #include <stdio.h>
@@ -876,7 +876,7 @@ gpr_consistent(PG_FUNCTION_ARGS)
     GISTENTRY *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
     prefix_range *query = PG_GETARG_PREFIX_RANGE_P(1);
     StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
-    prefix_range *key = (prefix_range *) DatumGetPrefixRange(entry->key);
+    prefix_range *key = DatumGetPrefixRange(entry->key);
     bool retval;
 
     /**

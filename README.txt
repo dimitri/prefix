@@ -77,11 +77,11 @@ http://www.sigaev.ru/cvsweb/cvsweb.cgi/gevel/[].
 Those queries should return the same line, but it fails with
 +enable_seqscan to off+ when the index is not properly build.
 
-  \set enable_seqscan to on;
+  set enable_seqscan to on;
   select * from ranges where prefix @> '0146640123';
   select * from ranges where prefix @> '0100091234';
 
-  \set enable_seqscan to off;
+  set enable_seqscan to off;
   select * from ranges where prefix @> '0146640123';
   select * from ranges where prefix @> '0100091234';
 
@@ -126,8 +126,8 @@ is the nearest of the first.
 
   CREATE INDEX idx_prefix ON prefixes USING GIST(prefix gist_prefix_ops);
 
-  dim=# \timing
-  Timing is on.
+==== set enable_seqscan to on;
+
   dim=# select * from prefixes where prefix @> '0218751234';
    prefix |                name                 | shortname | state
   --------+-------------------------------------+-----------+-------
@@ -136,8 +136,8 @@ is the nearest of the first.
   
   Time: 10,564 ms
 
-  dim=# set enable_seqscan to off;
-  SET
+==== set enable_seqscan to off;
+
   dim=# select * from prefixes where prefix @> '0218751234';
    prefix |                name                 | shortname | state
   --------+-------------------------------------+-----------+-------
@@ -148,4 +148,71 @@ is the nearest of the first.
 
 === Usage with prefix_range data
 
-See tests above...
+  dim=# select '123'::prefix_range @> '123456';
+   ?column?
+  ----------
+   t
+  (1 row)
+
+  dim=# select a, b, pr_penalty(a::prefix_range, b::prefix_range), a::prefix_range | b::prefix_range as union
+    from (values('095[4-5]', '0[8-9]'),
+                ('095[4-5]', '0[0-9]'),
+                ('095[4-5]', '[0-3]'),
+                ('095[4-5]', '0'),
+                ('095[4-5]', '[0-9]'),
+                ('095[4-5]', '0[1-5]'),
+                ('095[4-5]', '32'),
+                ('095[4-5]', '[1-3]'),
+                ('095[4-5]', '0953'),
+                ('095[4-5]', '095345'),
+                ('095[4-5]', '095456')) as t(a, b)
+  order by 3 asc;
+      a     |   b    | pr_penalty  |  union
+  ----------+--------+-------------+----------
+   095[4-5] | 095456 | 2.32831e-10 | 095[4-5]
+   095[4-5] | 095345 | 1.19209e-07 | 095[3-5]
+   095[4-5] | 0953   | 1.19209e-07 | 095[3-5]
+   095[4-5] | 0[8-9] | 1.52588e-05 | 0[8-9]
+   095[4-5] | 0[0-9] | 1.52588e-05 | 0[0-9]
+   095[4-5] | [0-9]  |  0.00390625 | [0-9]
+   095[4-5] | 0      |  0.00390625 | 0[]
+   095[4-5] | [0-3]  |  0.00390625 | [0-3]
+   095[4-5] | 0[1-5] |   0.0078125 | 0[1-9]
+   095[4-5] | 32     |           1 | [0-3]
+   095[4-5] | [1-3]  |           1 | [0-3]
+  (11 rows)
+
+==== set enable_seqscan to on;
+
+  dim=#   select * from ranges where prefix @> '0146640123';
+   prefix |      name      | shortname | state
+  --------+----------------+-----------+-------
+   0146[] | FRANCE TELECOM | FRTE      | S
+  (1 row)
+  
+  Time: 6,186 ms
+  
+  dim=#   select * from ranges where prefix @> '0100091234';
+    prefix  |    name    | shortname | state
+  ----------+------------+-----------+-------
+   010009[] | LONG PHONE | LGPH      | S
+  (1 row)
+  
+  Time: 6,166 ms
+
+==== set enable_seqscan to off;
+
+  dim=#   select * from ranges where prefix @> '0146640123';
+   prefix | name | shortname | state
+  --------+------+-----------+-------
+  (0 rows)
+  
+  Time: 0,781 ms
+  dim=#   select * from ranges where prefix @> '0100091234';
+    prefix  |    name    | shortname | state
+  ----------+------------+-----------+-------
+   010009[] | LONG PHONE | LGPH      | S
+  (1 row)
+  
+  Time: 0,734 ms
+

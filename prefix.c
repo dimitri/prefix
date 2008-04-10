@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.33 2008/04/09 19:05:53 dim Exp $
+ * $Id: prefix.c,v 1.34 2008/04/10 07:38:27 dim Exp $
  */
 
 #include <stdio.h>
@@ -23,8 +23,6 @@
 #include <math.h>
 
 #define  DEBUG
-#define  DEBUG_UNION
-#define  DEBUG_PENALTY
 /**
  * We use those DEBUG defines in the code, uncomment them to get very
  * verbose output.
@@ -936,11 +934,16 @@ float __pr_penalty(prefix_range *orig, prefix_range *new)
   char tmp;
 
   if( orig->prefix[0] != 0 ) {
+    /**
+     * The prefix main test case deals with phone number data, hence
+     * containing only numbers...
+     */
+    if( orig->prefix[0] < '0' || orig->prefix[0] > '9' )
 #ifdef DEBUG
-  elog(NOTICE, "__pr_penalty(%s, %s) orig->first=%d orig->last=%d ", 
-       DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(orig))),
-       DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(new))),
-       orig->first, orig->last);
+      elog(NOTICE, "__pr_penalty(%s, %s) orig->first=%d orig->last=%d ", 
+	   DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(orig))),
+	   DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(new))),
+	   orig->first, orig->last);
 #endif
     Assert(orig->prefix[0] >= '0' && orig->prefix[0] <= '9');
   }

@@ -95,16 +95,6 @@ RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE 'C' IMMUTABLE STRICT;
 
-CREATE OR REPLACE FUNCTION prefix_range_contains_prefix(prefix_range, text)
-RETURNS bool
-AS 'MODULE_PATHNAME'
-LANGUAGE 'C' IMMUTABLE STRICT;
-
-CREATE OR REPLACE FUNCTION prefix_range_contained_by_prefix(text, prefix_range)
-RETURNS bool
-AS 'MODULE_PATHNAME'
-LANGUAGE 'C' IMMUTABLE STRICT;
-
 CREATE OR REPLACE FUNCTION prefix_range_union(prefix_range, prefix_range)
 RETURNS prefix_range
 AS 'MODULE_PATHNAME'
@@ -115,56 +105,6 @@ RETURNS prefix_range
 AS 'MODULE_PATHNAME'
 LANGUAGE 'C' IMMUTABLE STRICT;
 
-CREATE OPERATOR << (
-	LEFTARG = prefix_range,
-	RIGHTARG = prefix_range,
-	PROCEDURE = prefix_range_contained_by_strict,
-	COMMUTATOR = '>>',
-	RESTRICT = contsel,
-	JOIN = contjoinsel
-);
-COMMENT ON OPERATOR <<(prefix_range, prefix_range) IS 'contained by strict?';
-
-CREATE OPERATOR <<= (
-	LEFTARG = prefix_range,
-	RIGHTARG = prefix_range,
-	PROCEDURE = prefix_range_contained_by,
-	COMMUTATOR = '>>=',
-	RESTRICT = contsel,
-	JOIN = contjoinsel
-);
-COMMENT ON OPERATOR <<=(prefix_range, prefix_range) IS 'contained by?';
-
-CREATE OPERATOR && (
-	LEFTARG = prefix_range,
-	RIGHTARG = prefix_range,
-	PROCEDURE = prefix_range_overlaps,
-	COMMUTATOR = '&&',
-	RESTRICT = areasel,
-	JOIN = areajoinsel
-);
-COMMENT ON OPERATOR &&(prefix_range, prefix_range) IS 'overlaps?';
-
-CREATE OPERATOR >> (
-	LEFTARG = prefix_range,
-	RIGHTARG = prefix_range,
-	PROCEDURE = prefix_range_contains_strict,
-	COMMUTATOR = '<<',
-	RESTRICT = contsel,
-	JOIN = contjoinsel
-);
-COMMENT ON OPERATOR >>(prefix_range, prefix_range) IS 'contains strict?';
-
-CREATE OPERATOR >>= (
-	LEFTARG = prefix_range,
-	RIGHTARG = prefix_range,
-	PROCEDURE = prefix_range_contains,
-	COMMUTATOR = '<<=',
-	RESTRICT = contsel,
-	JOIN = contjoinsel
-);
-COMMENT ON OPERATOR >>=(prefix_range, prefix_range) IS 'contains?';
-
 CREATE OPERATOR = (
 	LEFTARG = prefix_range,
 	RIGHTARG = prefix_range,
@@ -174,7 +114,7 @@ CREATE OPERATOR = (
 	RESTRICT = eqsel,
 	JOIN = eqjoinsel
 );
-COMMENT ON OPERATOR >>=(prefix_range, prefix_range) IS 'equals?';
+COMMENT ON OPERATOR =(prefix_range, prefix_range) IS 'equals?';
 
 CREATE OPERATOR <> (
 	LEFTARG = prefix_range,
@@ -185,7 +125,7 @@ CREATE OPERATOR <> (
 	RESTRICT = neqsel,
 	JOIN = neqjoinsel
 );
-COMMENT ON OPERATOR >>=(prefix_range, prefix_range) IS 'not equals?';
+COMMENT ON OPERATOR <>(prefix_range, prefix_range) IS 'not equals?';
 
 CREATE OPERATOR < (
 	LEFTARG = prefix_range,
@@ -229,6 +169,16 @@ CREATE OPERATOR & (
 );
 COMMENT ON OPERATOR &(prefix_range, prefix_range) IS 'intersection';
 
+CREATE OPERATOR && (
+	LEFTARG = prefix_range,
+	RIGHTARG = prefix_range,
+	PROCEDURE = prefix_range_overlaps,
+	COMMUTATOR = '&&',
+	RESTRICT = areasel,
+	JOIN = areajoinsel
+);
+COMMENT ON OPERATOR &&(prefix_range, prefix_range) IS 'overlaps?';
+
 CREATE OPERATOR @> (
 	LEFTARG = prefix_range,
 	RIGHTARG = prefix_range,
@@ -237,22 +187,6 @@ CREATE OPERATOR @> (
 );
 COMMENT ON OPERATOR @>(prefix_range, prefix_range) IS 'contains?';
 
-CREATE OPERATOR @> (
-	LEFTARG = prefix_range,
-	RIGHTARG = text,
-	PROCEDURE = prefix_range_contains_prefix,
-	COMMUTATOR = '<@'
-);
-COMMENT ON OPERATOR @>(prefix_range, text) IS 'prefix_range contains query?';
-
-CREATE OPERATOR <@ (
-	LEFTARG = text,
-	RIGHTARG = prefix_range,
-	PROCEDURE = prefix_range_contained_by_prefix,
-	COMMUTATOR = '@>'
-);
-COMMENT ON OPERATOR <@(text, prefix_range) IS 'prefix_range is contained by query?';
-
 CREATE OPERATOR <@ (
 	LEFTARG = prefix_range,
 	RIGHTARG = prefix_range,
@@ -260,7 +194,6 @@ CREATE OPERATOR <@ (
 	COMMUTATOR = '@>'
 );
 COMMENT ON OPERATOR <@(prefix_range, prefix_range) IS 'contained by?';
-
 
 CREATE OPERATOR CLASS btree_prefix_range_ops
 DEFAULT FOR TYPE prefix_range USING btree

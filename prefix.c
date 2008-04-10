@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.34 2008/04/10 07:38:27 dim Exp $
+ * $Id: prefix.c,v 1.35 2008/04/10 08:27:49 dim Exp $
  */
 
 #include <stdio.h>
@@ -29,6 +29,7 @@
  *
 #define  DEBUG_UNION
 #define  DEBUG_PENALTY
+#define  DEBUG_PICKSPLIT
 #define  DEBUG_PRESORT_GP
 #define  DEBUG_PRESORT_MAX
 #define  DEBUG_PRESORT_UNIONS
@@ -104,8 +105,6 @@ Datum prefix_range_contains(PG_FUNCTION_ARGS);
 Datum prefix_range_contains_strict(PG_FUNCTION_ARGS);
 Datum prefix_range_contained_by(PG_FUNCTION_ARGS);
 Datum prefix_range_contained_by_strict(PG_FUNCTION_ARGS);
-Datum prefix_range_contains_prefix(PG_FUNCTION_ARGS);
-Datum prefix_range_contained_by_prefix(PG_FUNCTION_ARGS);
 Datum prefix_range_union(PG_FUNCTION_ARGS);
 Datum prefix_range_inter(PG_FUNCTION_ARGS);
 
@@ -838,24 +837,6 @@ prefix_range_contained_by_strict(PG_FUNCTION_ARGS)
 			      FALSE ));
 }
 
-PG_FUNCTION_INFO_V1(prefix_range_contains_prefix);
-Datum
-prefix_range_contains_prefix(PG_FUNCTION_ARGS)
-{
-  PG_RETURN_BOOL( pr_contains_prefix(PG_GETARG_PREFIX_RANGE_P(0),
-				     PG_GETARG_TEXT_P(1),
-				     TRUE ));
-}
-
-PG_FUNCTION_INFO_V1(prefix_range_contained_by_prefix);
-Datum
-prefix_range_contained_by_prefix(PG_FUNCTION_ARGS)
-{
-  PG_RETURN_BOOL( pr_contains_prefix(PG_GETARG_PREFIX_RANGE_P(1),
-				     PG_GETARG_TEXT_P(0),
-				     TRUE ));
-}
-
 PG_FUNCTION_INFO_V1(prefix_range_union);
 Datum
 prefix_range_union(PG_FUNCTION_ARGS)
@@ -1130,18 +1111,6 @@ gpr_picksplit(PG_FUNCTION_ARGS)
 
       Assert(curl != NULL && curr != NULL);
 
-      if( curl->prefix[0] != 0 )
-	Assert(curl->prefix[0] >= '0' && curl->prefix[0] <= '9');
-
-      if( curr->prefix[0] != 0 )
-	Assert(curr->prefix[0] >= '0' && curr->prefix[0] <= '9');
-
-      if( unionL->prefix[0] != 0 )
-	Assert(unionL->prefix[0] >= '0' && unionL->prefix[0] <= '9');
-
-      if( unionR->prefix[0] != 0 )
-	Assert(unionR->prefix[0] >= '0' && unionR->prefix[0] <= '9');
-
       pll = __pr_penalty(unionL, curl);
       plr = __pr_penalty(unionR, curl);
       prl = __pr_penalty(unionL, curr);
@@ -1213,15 +1182,6 @@ gpr_picksplit(PG_FUNCTION_ARGS)
     if( offl == offr ) {
       curl = DatumGetPrefixRange(ent[offl].key);
 
-      if( curl->prefix[0] != 0 )
-	Assert(curl->prefix[0] >= '0' && curl->prefix[0] <= '9');
-
-      if( unionL->prefix[0] != 0 )
-	Assert(unionL->prefix[0] >= '0' && unionL->prefix[0] <= '9');
-
-      if( unionR->prefix[0] != 0 )
-	Assert(unionR->prefix[0] >= '0' && unionR->prefix[0] <= '9');
-
       pll  = __pr_penalty(unionL, curl);
       plr  = __pr_penalty(unionR, curl);
 
@@ -1237,12 +1197,6 @@ gpr_picksplit(PG_FUNCTION_ARGS)
       }
     }
 
-    if( unionL->prefix[0] != 0 )
-      Assert(unionL->prefix[0] >= '0' && unionL->prefix[0] <= '9');
-
-    if( unionR->prefix[0] != 0 )
-      Assert(unionR->prefix[0] >= '0' && unionR->prefix[0] <= '9');
-
     v->spl_ldatum = PrefixRangeGetDatum(unionL);
     v->spl_rdatum = PrefixRangeGetDatum(unionR);
 
@@ -1252,7 +1206,7 @@ gpr_picksplit(PG_FUNCTION_ARGS)
      */
     Assert(maxoff = v->spl_nleft+v->spl_nright);
 
-#ifdef DEBUG
+#ifdef DEBUG_PICKSPLIT
     elog(NOTICE, "gpr_picksplit(): entryvec->n=%4d maxoff=%4d l=%4d r=%4d l+r=%4d unionL='%s' unionR='%s'",
 	 entryvec->n, maxoff, v->spl_nleft, v->spl_nright, v->spl_nleft+v->spl_nright,
 	 DatumGetCString(DirectFunctionCall1(prefix_range_out, v->spl_ldatum)),

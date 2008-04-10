@@ -68,7 +68,21 @@ For information about the Gevel project, see
 http://www.sai.msu.su/~megera/oddmuse/index.cgi/Gevel[] and
 http://www.sigaev.ru/cvsweb/cvsweb.cgi/gevel/[].
 
-  select gist_stat('idx_prefix');
+  dim=# select gist_stat('idx_prefix');
+                  gist_stat
+  -----------------------------------------
+   Number of levels:          2
+   Number of pages:           63
+   Number of leaf pages:      62
+   Number of tuples:          10031
+   Number of invalid tuples:  0
+   Number of leaf tuples:     9969
+   Total size of tuples:      279904 bytes
+   Total size of leaf tuples: 278424 bytes
+   Total size of index:       516096 bytes
+  
+  (1 row)
+
   select * from gist_print('idx_prefix') as t(level int, valid bool, a prefix_range) where level =1;
   select * from gist_print('idx_prefix') as t(level int, valid bool, a prefix_range) order by level;
 

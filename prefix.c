@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.35 2008/04/10 08:27:49 dim Exp $
+ * $Id: prefix.c,v 1.36 2008/04/10 13:19:37 dim Exp $
  */
 
 #include <stdio.h>
@@ -23,6 +23,8 @@
 #include <math.h>
 
 #define  DEBUG
+#define  DEBUG_UNION
+#define  DEBUG_PICKSPLIT
 /**
  * We use those DEBUG defines in the code, uncomment them to get very
  * verbose output.
@@ -1109,6 +1111,14 @@ gpr_picksplit(PG_FUNCTION_ARGS)
       curl = DatumGetPrefixRange(ent[offl].key);
       curr = DatumGetPrefixRange(ent[offr].key);
 
+#ifdef DEBUG_PICKSPLIT
+      elog(NOTICE, "gpr_picksplit: ent[%3d] = '%s' \tent[%3d] = '%s'",
+	   offl,
+	   DatumGetCString(DirectFunctionCall1(prefix_range_out, PrefixRangeGetDatum(curl))),
+	   offr,
+	   DatumGetCString(DirectFunctionCall1(prefix_range_out, PrefixRangeGetDatum(curr))));
+#endif
+
       Assert(curl != NULL && curr != NULL);
 
       pll = __pr_penalty(unionL, curl);
@@ -1156,7 +1166,7 @@ gpr_picksplit(PG_FUNCTION_ARGS)
 	/**
 	 * All entries still in the list go into listL
 	 */
-	for(; offl <= maxoff; offl = OffsetNumberNext(offl)) {
+	for(; offl <= offr; offl = OffsetNumberNext(offl)) {
 	  curl   = DatumGetPrefixRange(ent[offl].key);
 	  unionL = pr_union(unionL, curl);
 	  v->spl_left[v->spl_nleft++] = offl;
@@ -1166,10 +1176,10 @@ gpr_picksplit(PG_FUNCTION_ARGS)
 	/**
 	 * All entries still in the list go into listR
 	 */
-	for(; offl <= maxoff; offl = OffsetNumberNext(offl)) {
-	  curl   = DatumGetPrefixRange(ent[offl].key);
-	  unionR = pr_union(unionR, curl);
-	  v->spl_right[v->spl_nright++] = offl;
+	for(; offr >= offl; offr = OffsetNumberPrev(offr)) {
+	  curr   = DatumGetPrefixRange(ent[offr].key);
+	  unionR = pr_union(unionR, curr);
+	  v->spl_right[v->spl_nright++] = offr;
 	}
       }
     }
@@ -1239,8 +1249,8 @@ gpr_union(PG_FUNCTION_ARGS)
     }
   
     for (i = 1; i < numranges; i++) {
-      tmp = DatumGetPrefixRange(ent[i].key);
       old = out;
+      tmp = DatumGetPrefixRange(ent[i].key);
       out = pr_union(out, tmp);
 
 #ifdef DEBUG_UNION

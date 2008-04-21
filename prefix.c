@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.37 2008/04/10 15:59:27 dim Exp $
+ * $Id: prefix.c,v 1.38 2008/04/21 09:59:25 dim Exp $
  */
 
 #include <stdio.h>
@@ -23,8 +23,6 @@
 #include <math.h>
 
 #define  DEBUG
-#define  DEBUG_UNION
-#define  DEBUG_PICKSPLIT
 /**
  * We use those DEBUG defines in the code, uncomment them to get very
  * verbose output.
@@ -474,6 +472,17 @@ bool pr_gt(prefix_range *a, prefix_range *b, bool eqval) {
 }
 
 static inline
+int pr_cmp(prefix_range *a, prefix_range *b) {
+  if( pr_eq(a, b) )
+    return 0;
+
+  if( pr_lt(a, b, false) )
+    return -1;
+
+  return 1;
+}
+
+static inline
 bool pr_contains(prefix_range *left, prefix_range *right, bool eqval) {
   int sl;
   int sr;
@@ -786,13 +795,7 @@ prefix_range_cmp(PG_FUNCTION_ARGS)
   prefix_range *a = PG_GETARG_PREFIX_RANGE_P(0);
   prefix_range *b = PG_GETARG_PREFIX_RANGE_P(1);
 
-  if( pr_eq(a, b) )
-    PG_RETURN_INT32(0);
-
-  if( pr_lt(a, b, false) )
-    PG_RETURN_INT32(-1);
-
-  PG_RETURN_INT32(1);
+  PG_RETURN_INT32(pr_cmp(a, b));
 }
 
 PG_FUNCTION_INFO_V1(prefix_range_overlaps);
@@ -865,6 +868,7 @@ Datum gpr_compress(PG_FUNCTION_ARGS);
 Datum gpr_decompress(PG_FUNCTION_ARGS);
 Datum gpr_penalty(PG_FUNCTION_ARGS);
 Datum gpr_picksplit(PG_FUNCTION_ARGS);
+Datum gpr_picksplit_jordan(PG_FUNCTION_ARGS);
 Datum gpr_union(PG_FUNCTION_ARGS);
 Datum gpr_same(PG_FUNCTION_ARGS);
 Datum pr_penalty(PG_FUNCTION_ARGS);
@@ -1062,6 +1066,139 @@ pr_penalty(PG_FUNCTION_ARGS)
   PG_RETURN_FLOAT4(penalty);
 }
 
+static int gpr_cmp(const GISTENTRY **e1, const GISTENTRY **e2) {
+  prefix_range *k1 = DatumGetPrefixRange((*e1)->key);
+  prefix_range *k2 = DatumGetPrefixRange((*e2)->key);
+
+  return pr_cmp(k1, k2);
+}
+
+/**
+ * Median idea from Jordan:
+ *
+ * sort the entries and choose a cut point near the median, being
+ * careful not to cut a group sharing a common prefix when sensible.
+ */
+PG_FUNCTION_INFO_V1(gpr_picksplit_jordan);
+Datum
+gpr_picksplit_jordan(PG_FUNCTION_ARGS)
+{
+    GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
+    OffsetNumber maxoff = entryvec->n - 1;
+    GISTENTRY *ent      = entryvec->vector;
+    GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
+
+    int	i, nbytes;
+    OffsetNumber *left, *right;
+    prefix_range *tmp_union;
+    prefix_range *unionL;
+    prefix_range *unionR;
+
+    GISTENTRY **raw_entryvec;
+    int cut, cut_tolerance, lower_dist, upper_dist;
+
+    maxoff = entryvec->n - 1;
+    nbytes = (maxoff + 1) * sizeof(OffsetNumber);
+
+    v->spl_left  = (OffsetNumber *) palloc(nbytes);
+    left         = v->spl_left;
+    v->spl_nleft = 0;
+
+    v->spl_right  = (OffsetNumber *) palloc(nbytes);
+    right         = v->spl_right;
+    v->spl_nright = 0;
+
+    unionL = NULL;
+    unionR = NULL;
+
+    /* Initialize the raw entry vector. */
+    raw_entryvec = (GISTENTRY **) malloc(entryvec->n * sizeof(void *));
+    for (i=FirstOffsetNumber; i <= maxoff; i=OffsetNumberNext(i))
+      raw_entryvec[i] = &(entryvec->vector[i]);
+    
+    /* Sort the raw entry vector. */
+    pg_qsort(&raw_entryvec[1], maxoff, sizeof(void *), &gpr_cmp);
+
+    /* 
+     * Find the distance between the middle of the raw entry vector and the
+     * lower-index of the first group.
+     */
+    cut = maxoff / 2;
+    cut_tolerance = cut / 2;
+    for (i=cut - 1; i > FirstOffsetNumber; i=OffsetNumberPrev(i)) {
+      tmp_union = pr_union(DatumGetPrefixRange(ent[i].key),
+			   DatumGetPrefixRange(ent[i+1].key));
+
+      if( strlen(tmp_union->prefix) == 0 )
+	break;
+    }
+    lower_dist = cut - i;
+	
+    /* 
+     * Find the distance between the middle of the raw entry vector and the
+     * upper-index of the first group.
+     */
+    for (i=1 + cut; i < maxoff; i=OffsetNumberNext(i)) {
+      tmp_union = pr_union(DatumGetPrefixRange(ent[i].key),
+			   DatumGetPrefixRange(ent[i-1].key));
+
+      if( strlen(tmp_union->prefix) == 0 )
+	break;
+    }
+    upper_dist = i - cut;
+
+    /*
+     * Choose the cut based on whichever falls within the cut tolerance and
+     * is closer to the midpoint.  Choose one at random it there is a tie.
+     *
+     * If neither are within the tolerance, use the midpoint as the default. 
+     */
+    if (lower_dist <= cut_tolerance || upper_dist <= cut_tolerance) {
+      if (lower_dist < upper_dist)
+	cut -= lower_dist;
+      else if (upper_dist < lower_dist)
+	cut += upper_dist;
+      else
+	cut = (random() % 2) ? (cut - lower_dist) : (cut + upper_dist);
+    }
+	
+    for (i=FirstOffsetNumber; i <= maxoff; i=OffsetNumberNext(i)) {
+      int real_index = raw_entryvec[i] - entryvec->vector;
+      // datum_alpha = VECGETKEY(entryvec, real_index);
+      tmp_union = DatumGetPrefixRange(entryvec->vector[real_index].key);
+
+      Assert(tmp_union != NULL);
+
+      /* Put everything below the cut in the left node. */
+      if (i < cut) {
+	if( unionL == NULL )
+	  unionL = tmp_union;
+	else
+	  unionL = pr_union(unionL, tmp_union);
+
+	*left = real_index;
+	++left;
+	++(v->spl_nleft);
+      }
+      /* And put everything else in the right node. */
+      else {
+	if( unionR == NULL )
+	  unionR = tmp_union;
+	else
+	  unionR = pr_union(unionR, tmp_union);
+
+	*right = real_index;
+	++right;
+	++(v->spl_nright);
+      }
+    }
+
+    *left = *right = FirstOffsetNumber; /* sentinel value, see dosplit() */
+    v->spl_ldatum = PrefixRangeGetDatum(unionL);
+    v->spl_rdatum = PrefixRangeGetDatum(unionR);
+    PG_RETURN_POINTER(v);
+}
+
 PG_FUNCTION_INFO_V1(gpr_picksplit);
 Datum
 gpr_picksplit(PG_FUNCTION_ARGS)
@@ -1107,7 +1244,7 @@ gpr_picksplit(PG_FUNCTION_ARGS)
     offl = OffsetNumberNext(offl);
     offr = OffsetNumberPrev(offr);
 
-    for(; offl < offr; offl = OffsetNumberNext(offl), offr = OffsetNumberPrev(offr)) {
+    while( offl < offr ) {
       curl = DatumGetPrefixRange(ent[offl].key);
       curr = DatumGetPrefixRange(ent[offr].key);
 
@@ -1139,6 +1276,9 @@ gpr_picksplit(PG_FUNCTION_ARGS)
 	    unionL = pr_union(unionL, tmp_union);
 	    v->spl_left[v->spl_nleft++] = offl;
 	    v->spl_left[v->spl_nleft++] = offr;
+
+	    offl = OffsetNumberNext(offl);
+	    offr = OffsetNumberPrev(offr);
 	    continue;
 	  }
 	}
@@ -1150,10 +1290,17 @@ gpr_picksplit(PG_FUNCTION_ARGS)
 
 	v->spl_left[v->spl_nleft++]   = offl;
 	v->spl_right[v->spl_nright++] = offr;
+
+	offl = OffsetNumberNext(offl);
+	offr = OffsetNumberPrev(offr);
       }
       else if( pll > plr && prl >= prr ) {
+	/**
+	 * Current rightmost entry is added to listL
+	 */
 	unionR = pr_union(unionR, curr);
 	v->spl_right[v->spl_nright++] = offr;
+	offr = OffsetNumberPrev(offr);
       }
       else if( pll <= plr && prl < prr ) {
 	/**
@@ -1161,6 +1308,7 @@ gpr_picksplit(PG_FUNCTION_ARGS)
 	 */
 	unionL = pr_union(unionL, curl);
 	v->spl_left[v->spl_nleft++] = offl;
+	offl = OffsetNumberNext(offl);
       }
       else if( (pll - plr) < (prr - prl) ) {
 	/**

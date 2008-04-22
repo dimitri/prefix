@@ -1,13 +1,15 @@
 
 MODULES = prefix
 DATA_built = prefix.sql
-DOCS = README.txt
+DOCS = $(patsubst %.txt,%.html,$(wildcard *.txt))
 
 PGXS = $(shell pg_config --pgxs)
 include $(PGXS)
 
 html: $(DOCS)
+
+%.html:%.txt
 	asciidoc -a toc $<
 
 site: html
-	scp ${DOCS:.txt=.html} cvs.pgfoundry.org:/home/pgfoundry.org/groups/prefix/htdocs
+	scp ${DOCS} cvs.pgfoundry.org:/home/pgfoundry.org/groups/prefix/htdocs

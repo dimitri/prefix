@@ -43,7 +43,7 @@ RETURNS text
 AS 'MODULE_PATHNAME', 'prefix_range_cast_to_text'
 LANGUAGE 'C' IMMUTABLE STRICT;
 
-CREATE CAST (text as prefix_range) WITH FUNCTION prefix_range(text);
+CREATE CAST (text as prefix_range) WITH FUNCTION prefix_range(text) AS IMPLICIT;
 CREATE CAST (prefix_range as text) WITH FUNCTION text(prefix_range);
 
 

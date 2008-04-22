@@ -1,0 +1,21 @@
+Source: prefix
+Section: misc
+Priority: extra
+Maintainer: Dimitri Fontaine <dim@tapoueh.org>
+Build-Depends: debhelper (>= 5.0.0), postgresql-server-dev-8.3
+Standards-Version: 3.7.3
+
+Package: postgresql-8.3-prefix
+Architecture: any
+Depends: ${shlibs:Depends}
+Recommends: postgresql-8.3
+Description: Prefix Range module for PostgreSQL
+ This PostgreSQL module provides the prefix_range datatype, which
+ allows to index searches such as finding the longest prefix matching
+ a telephone number, having prefixes in a table and telephone number
+ as a parameter:
+ .
+  select * from prefixes where prefix @> '0100091234';
+ .
+ The prefix column has to be of type prefix_range, and any text field
+ can get indexed by the provided GiST opclass.

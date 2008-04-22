@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.38 2008/04/21 09:59:25 dim Exp $
+ * $Id: prefix.c,v 1.39 2008/04/22 09:10:06 dim Exp $
  */
 
 #include <stdio.h>
@@ -20,6 +20,7 @@
 #include "utils/elog.h"
 #include "utils/palloc.h"
 #include "utils/builtins.h"
+#include "libpq/pqformat.h"
 #include <math.h>
 
 #define  DEBUG
@@ -85,10 +86,8 @@ enum pr_delimiters_t {
  */
 Datum prefix_range_in(PG_FUNCTION_ARGS);
 Datum prefix_range_out(PG_FUNCTION_ARGS);
-/*
 Datum prefix_range_recv(PG_FUNCTION_ARGS);
 Datum prefix_range_send(PG_FUNCTION_ARGS);
-*/
 Datum prefix_range_cast_to_text(PG_FUNCTION_ARGS);
 Datum prefix_range_cast_from_text(PG_FUNCTION_ARGS);
 
@@ -161,7 +160,7 @@ char *__greater_prefix(char *a, char *b, int alen, int blen)
  */
 
 static inline
-prefix_range *build_pr(char *prefix) {
+prefix_range *build_pr(const char *prefix) {
   int s = strlen(prefix) + 1;
   prefix_range *pr = palloc(sizeof(prefix_range) + s);
   memcpy(pr->prefix, prefix, s);
@@ -535,7 +534,7 @@ bool pr_contains_prefix(prefix_range *pr, text *query, bool eqval) {
   return false;
 }
 
-static inline
+static 
 prefix_range *pr_union(prefix_range *a, prefix_range *b) {
   prefix_range *res = NULL;
   int alen = strlen(a->prefix);
@@ -708,6 +707,39 @@ prefix_range_out(PG_FUNCTION_ARGS)
     sprintf(out, "%s[]", pr->prefix);
   }
   PG_RETURN_CSTRING(out);
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_recv);
+Datum
+prefix_range_recv(PG_FUNCTION_ARGS)
+{
+    StringInfo buf = (StringInfo) PG_GETARG_POINTER(0);
+    const char *first = pq_getmsgbytes(buf, 1);
+    const char *last  = pq_getmsgbytes(buf, 1);
+    const char *prefix = pq_getmsgstring(buf);
+    prefix_range *pr = build_pr(prefix);
+
+    pq_getmsgend(buf);
+
+    pr->first = *first;
+    pr->last  = *last;
+
+    PG_RETURN_PREFIX_RANGE_P(pr);
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_send);
+Datum
+prefix_range_send(PG_FUNCTION_ARGS)
+{
+    prefix_range *pr = PG_GETARG_PREFIX_RANGE_P(0);
+    StringInfoData buf;
+
+    pq_begintypsend(&buf);
+    pq_sendbyte(&buf, pr->first);
+    pq_sendbyte(&buf, pr->last);
+    pq_sendstring(&buf, pr->prefix);
+
+    PG_RETURN_BYTEA_P(pq_endtypsend(&buf));
 }
 
 PG_FUNCTION_INFO_V1(prefix_range_cast_from_text);
@@ -912,7 +944,7 @@ gpr_decompress(PG_FUNCTION_ARGS)
     PG_RETURN_POINTER(PG_GETARG_POINTER(0));
 }
 
-static inline
+static
 float __pr_penalty(prefix_range *orig, prefix_range *new)
 {
   float penalty;

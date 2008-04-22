@@ -15,9 +15,21 @@ RETURNS cstring
 AS 'MODULE_PATHNAME'
 LANGUAGE 'C' IMMUTABLE STRICT;
 
+CREATE OR REPLACE FUNCTION prefix_range_recv(internal)
+RETURNS prefix_range
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
+CREATE OR REPLACE FUNCTION prefix_range_send(prefix_range)
+RETURNS bytea
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
 CREATE TYPE prefix_range (
-	INPUT = prefix_range_in,
-	OUTPUT = prefix_range_out
+	INPUT   = prefix_range_in,
+	OUTPUT  = prefix_range_out,
+	RECEIVE = prefix_range_recv,
+	SEND    = prefix_range_send
 );
 COMMENT ON TYPE prefix_range IS 'prefix range: (prefix)?([a-b])?';
 

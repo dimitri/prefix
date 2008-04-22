@@ -192,10 +192,12 @@ CREATE OPERATOR && (
 COMMENT ON OPERATOR &&(prefix_range, prefix_range) IS 'overlaps?';
 
 CREATE OPERATOR @> (
-	LEFTARG = prefix_range,
-	RIGHTARG = prefix_range,
-	PROCEDURE = prefix_range_contains,
-	COMMUTATOR = '<@'
+	LEFTARG    = prefix_range,
+	RIGHTARG   = prefix_range,
+	PROCEDURE  = prefix_range_contains,
+	COMMUTATOR = '<@',
+	RESTRICT   = contsel,
+	JOIN       = contjoinsel
 );
 COMMENT ON OPERATOR @>(prefix_range, prefix_range) IS 'contains?';
 

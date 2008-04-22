@@ -1,5 +1,8 @@
 = Tests
 
+This document present some ways to test the link:README.html[prefix]
+PostgreSQL module, which aims to speed-up longest prefix searches.
+
 == Preparing
 
 The +prefixes.sql+ creates a table which fits +prefixes.fr.csv+

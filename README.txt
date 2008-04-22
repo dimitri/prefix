@@ -11,7 +11,7 @@ applications, where call routing and costs depend on matching
 caller/callee phone number to an operator prefix.
 
 Let's say the prefixes table is called +prefixes+, a typical query
-will try to match a phone number to the greater prefix in the table:
+will try to match a phone number to the longest prefix in the table:
 
     SELECT * 
       FROM prefixes

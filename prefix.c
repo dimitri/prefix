@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.41 2008/04/23 10:32:44 dim Exp $
+ * $Id: prefix.c,v 1.42 2008/04/23 15:13:43 dim Exp $
  */
 
 #include <stdio.h>
@@ -152,20 +152,16 @@ char *__greater_prefix(char *a, char *b, int alen, int blen)
 }
 
 /**
- * First, the input reader. A prefix range will have to respect the
- * following regular expression: .*([[].-.[]])? 
- *
- * examples : 123[4-6], [1-3], 234, 01[] --- last one not covered by
- * regexp.
+ * Helper function which builds a prefix_range from a prefix, a first
+ * and a last component, making a copy of the prefix string. 
  */
-
 static inline
-prefix_range *build_pr(const char *prefix) {
+prefix_range *build_pr(const char *prefix, char first, char last) {
   int s = strlen(prefix) + 1;
   prefix_range *pr = palloc(sizeof(prefix_range) + s);
   memcpy(pr->prefix, prefix, s);
-  pr->first = 0;
-  pr->last  = 0;
+  pr->first = first;
+  pr->last  = last;
 
 #ifdef DEBUG_PR_IN
   elog(NOTICE,
@@ -176,14 +172,18 @@ prefix_range *build_pr(const char *prefix) {
   return pr;
 }
 
+/**
+ * Normalize a prefix_range. Two cases are handled:
+ *
+ *  abc[x-x] is rewritten abcx
+ *  abc[x-y] is rewritten abc[y-x] when y < x
+ */
 static inline
 prefix_range *pr_normalize(prefix_range *a) {
   char tmpswap;
   char *prefix;
 
-  prefix_range *pr = build_pr(a->prefix);
-  pr->first = a->first;
-  pr->last  = a->last;
+  prefix_range *pr = build_pr(a->prefix, a->first, a->last);
 
   if( pr->first == pr->last ) {
     int s = strlen(pr->prefix)+2;
@@ -197,7 +197,7 @@ prefix_range *pr_normalize(prefix_range *a) {
 #endif
 
     pfree(pr);    
-    pr = build_pr(prefix);
+    pr = build_pr(prefix, 0, 0);
   }
   else if( pr->first > pr->last ) {
     tmpswap   = pr->first;
@@ -206,6 +206,14 @@ prefix_range *pr_normalize(prefix_range *a) {
   }
   return pr;
 }
+
+/**
+ * First, the input reader. A prefix range will have to respect the
+ * following regular expression: .*([[].-.[]])? 
+ *
+ * examples : 123[4-6], [1-3], 234, 01[] --- last one not covered by
+ * regexp.
+ */
 
 static inline
 prefix_range *pr_from_str(char *str) {
@@ -243,7 +251,7 @@ prefix_range *pr_from_str(char *str) {
       }
       opened = true;
 
-      pr = build_pr(prefix);
+      pr = build_pr(prefix, 0, 0);
       break;
 
     case PR_SEP:
@@ -321,7 +329,7 @@ prefix_range *pr_from_str(char *str) {
   }
 
   if( ! opened ) {
-    pr = build_pr(prefix);
+    pr = build_pr(prefix, 0, 0);
   }
 
   if( opened && !closed ) {
@@ -544,9 +552,9 @@ prefix_range *pr_union(prefix_range *a, prefix_range *b) {
   char min, max;
 
   if( 0 == alen && 0 == blen ) {
-    res = build_pr("");
-    res->first = a->first <= b->first ? a->first : b->first;
-    res->last  = a->last  >= b->last  ? a->last : b->last;
+    res = build_pr("",
+		   a->first <= b->first ? a->first : b->first,
+		   a->last  >= b->last  ? a->last : b->last);
     return pr_normalize(res);
   }
 
@@ -554,7 +562,7 @@ prefix_range *pr_union(prefix_range *a, prefix_range *b) {
   gplen = strlen(gp);
 
   if( gplen == 0 ) {
-    res = build_pr("");
+    res = build_pr("", 0, 0);
     if( alen > 0 && blen > 0 ) {
       res->first = a->prefix[0];
       res->last  = b->prefix[0];
@@ -569,7 +577,7 @@ prefix_range *pr_union(prefix_range *a, prefix_range *b) {
     }
   }
   else {
-    res = build_pr(gp);
+    res = build_pr(gp, 0, 0);
 
     if( gplen == alen && alen == blen ) {
       res->first = a->first <= b->first ? a->first : b->first;
@@ -610,9 +618,9 @@ prefix_range *pr_inter(prefix_range *a, prefix_range *b) {
   int gplen;
 
   if( 0 == alen && 0 == blen ) {
-    res = build_pr("");
-    res->first = a->first > b->first ? a->first : b->first;
-    res->last  = a->last  < b->last  ? a->last  : b->last;
+    res = build_pr("",
+		   a->first > b->first ? a->first : b->first,
+		   a->last  < b->last  ? a->last  : b->last);
     return pr_normalize(res);
   }
 
@@ -620,43 +628,35 @@ prefix_range *pr_inter(prefix_range *a, prefix_range *b) {
   gplen = strlen(gp);
 
   if( gplen != alen && gplen != blen ) {
-    return build_pr("");
+    return build_pr("", 0, 0);
   }
 
   if( gplen == alen && 0 == alen ) {
     if( a->first <= b->prefix[0] && b->prefix[0] <= a->last ) {      
-      res = build_pr(b->prefix);
-      res->first = b->first;
-      res->last  = b->last;
+      res = build_pr(b->prefix, b->first, b->last);
     }
     else
-      res = build_pr("");
+      res = build_pr("", 0, 0);
   }
   else if( gplen == blen && 0 == blen ) {
     if( b->first <= a->prefix[0] && a->prefix[0] <= b->last ) {      
-      res = build_pr(a->prefix);
-      res->first = a->first;
-      res->last  = a->last;
+      res = build_pr(a->prefix, a->first, a->last);
     }
     else
-      res = build_pr("");
+      res = build_pr("", 0, 0);
   }
   else if( gplen == alen && alen == blen ) {
-    res = build_pr(gp);
-    res->first = a->first > b->first ? a->first : b->first;
-    res->last  = a->last  < b->last  ? a->last  : b->last;
+    res = build_pr(gp,
+		   a->first > b->first ? a->first : b->first,
+		   a->last  < b->last  ? a->last  : b->last);
   }
   else if( gplen == alen ) {
     Assert(gplen < blen);
-    res = build_pr(b->prefix);
-    res->first = b->first;
-    res->last  = b->last;
+    res = build_pr(b->prefix, b->first, b->last);
   }
   else if( gplen == blen ) {
     Assert(gplen < alen);
-    res = build_pr(a->prefix);
-    res->first = a->first;
-    res->last  = a->last;
+    res = build_pr(a->prefix, a->first, a->last);
   }
 
   return pr_normalize(res);
@@ -717,13 +717,9 @@ prefix_range_recv(PG_FUNCTION_ARGS)
     const char *first = pq_getmsgbytes(buf, 1);
     const char *last  = pq_getmsgbytes(buf, 1);
     const char *prefix = pq_getmsgstring(buf);
-    prefix_range *pr = build_pr(prefix);
+    prefix_range *pr = build_pr(prefix, *first, *last);
 
     pq_getmsgend(buf);
-
-    pr->first = *first;
-    pr->last  = *last;
-
     PG_RETURN_PREFIX_RANGE_P(pr);
 }
 
@@ -1696,9 +1692,7 @@ gpr_union(PG_FUNCTION_ARGS)
     out = tmp;
 
     if( numranges == 1 ) {
-      out = build_pr(tmp->prefix);
-      out->first = tmp->first;
-      out->last  = tmp->last;
+      out = build_pr(tmp->prefix, tmp->first, tmp->last);
 
       PG_RETURN_PREFIX_RANGE_P(out);
     }

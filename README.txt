@@ -30,6 +30,12 @@ Check +$PATH+, then
 The +make install+ step might have to be done as +root+, and the
 psql one has to be done as a PostgreSQL 'superuser'.
 
+== Uninstall
+
+It's as easy as:
+
+  DROP TYPE prefix_range CASCADE;
+
 == Usage
 
 === Table and index creation
@@ -56,7 +62,16 @@ psql one has to be done as a PostgreSQL 'superuser'.
    t
   (1 row)
 
-==== set enable_seqscan to on;
+Please note earlier versions of +prefix+ didn't use any restriction
+nor join selectivity estimator functions for the +@>+ operator, so you
+had to +set enable_seqscan to off+ to use the index. That's no more
+the case, the +@>+ operator uses +contsel+ and +contjoinsel+ and the
+planner is able to figure out by itself when to use the index or not.
+
+If you don't understand previous mention, ignore it and use a more
+recent version of +prefix+ than +0.2+.
+
+==== Forcing seqcan
 
   dim=# select * from ranges where prefix @> '0146640123';
    prefix |      name      | shortname | state
@@ -74,7 +89,7 @@ psql one has to be done as a PostgreSQL 'superuser'.
   
   Time: 4,110 ms
 
-=== set enable_seqscan to off;
+==== Using the Index
 
   dim=# select * from ranges where prefix @> '0146640123';
    prefix |      name      | shortname | state

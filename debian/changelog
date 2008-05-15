@@ -1,3 +1,9 @@
+prefix (0.3-1) unstable; urgency=low
+
+  * Cleanup: text based prefix indexing is no more needed
+
+ -- Dimitri Fontaine <dim@tapoueh.org>  Thu, 15 May 2008 09:35:06 +0200
+
 prefix (0.2-1) unstable; urgency=low
   
   * Initial release

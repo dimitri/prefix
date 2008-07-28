@@ -35,7 +35,7 @@ deb:
 	done
 
 	# get rid of CVS dirs
-	for n in "CVS" "CVSROOT"; do \
+	for n in "CVS" "CVSROOT" "prefix.sql" "prefix.so"; do \
 	  find $(EXPORT) -type d -name "$$n" -print0|xargs -0 rm -rf; \
 	  find $(EXPORT) -type d -name "$$n" -print0|xargs -0 rm -rf; \
 	done

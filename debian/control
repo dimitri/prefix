@@ -7,8 +7,7 @@ Standards-Version: 3.8.0
 
 Package: postgresql-8.3-prefix
 Architecture: any
-Depends: ${shlibs:Depends}
-Recommends: postgresql-8.3
+Depends: ${shlibs:Depends}, postgresql-8.3
 Description: Prefix Range module for PostgreSQL
  This PostgreSQL module provides the prefix_range datatype, which
  allows to index searches such as finding the longest prefix matching

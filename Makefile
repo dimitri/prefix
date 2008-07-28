@@ -29,13 +29,13 @@ deb:
 	cp -a . $(EXPORT)
 
 	# get rid of temp and build files
-	for n in ".#*" "*~" "build-stamp" "configure-stamp"; do \
+	for n in ".#*" "*~" "build-stamp" "configure-stamp" "prefix.sql" "prefix.so"; do \
 	  find $(EXPORT) -name "$$n" -print0|xargs -0 echo rm -f; \
 	  find $(EXPORT) -name "$$n" -print0|xargs -0 rm -f; \
 	done
 
 	# get rid of CVS dirs
-	for n in "CVS" "CVSROOT" "prefix.sql" "prefix.so"; do \
+	for n in "CVS" "CVSROOT"; do \
 	  find $(EXPORT) -type d -name "$$n" -print0|xargs -0 rm -rf; \
 	  find $(EXPORT) -type d -name "$$n" -print0|xargs -0 rm -rf; \
 	done

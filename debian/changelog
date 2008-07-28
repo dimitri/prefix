@@ -1,8 +1,9 @@
 prefix (0.3-1) unstable; urgency=low
 
   * Cleanup: text based prefix indexing is no more needed
+  * Debian packaging and ITP (Closes: #492692)
 
- -- Dimitri Fontaine <dim@tapoueh.org>  Thu, 15 May 2008 09:35:06 +0200
+ -- Dimitri Fontaine <dim@tapoueh.org>  Mon, 28 Jul 2008 11:06:35 +0200
 
 prefix (0.2-1) unstable; urgency=low
   

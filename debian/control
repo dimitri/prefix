@@ -3,7 +3,7 @@ Section: misc
 Priority: extra
 Maintainer: Dimitri Fontaine <dim@tapoueh.org>
 Build-Depends: debhelper (>= 5.0.0), postgresql-server-dev-8.3
-Standards-Version: 3.7.3
+Standards-Version: 3.8.0
 
 Package: postgresql-8.3-prefix
 Architecture: any

@@ -33,6 +33,11 @@ CREATE TYPE prefix_range (
 );
 COMMENT ON TYPE prefix_range IS 'prefix range: (prefix)?([a-b])?';
 
+CREATE OR REPLACE FUNCTION prefix_range(text, text, text)
+RETURNS prefix_range
+AS 'MODULE_PATHNAME', 'prefix_range_init'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
 CREATE OR REPLACE FUNCTION prefix_range(text)
 RETURNS prefix_range
 AS 'MODULE_PATHNAME', 'prefix_range_cast_from_text'

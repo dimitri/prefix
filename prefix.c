@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.42 2008/04/23 15:13:43 dim Exp $
+ * $Id: prefix.c,v 1.43 2008/11/30 16:40:40 dim Exp $
  */
 
 #include <stdio.h>
@@ -84,6 +84,7 @@ enum pr_delimiters_t {
 /**
  * prefix_range input/output functions and operators
  */
+Datum prefix_range_init(PG_FUNCTION_ARGS);
 Datum prefix_range_in(PG_FUNCTION_ARGS);
 Datum prefix_range_out(PG_FUNCTION_ARGS);
 Datum prefix_range_recv(PG_FUNCTION_ARGS);
@@ -205,6 +206,28 @@ prefix_range *pr_normalize(prefix_range *a) {
     pr->last  = tmpswap;
   }
   return pr;
+}
+
+/*
+ * Init a prefix value from the prefix_range(text, text, text)
+ * function
+ */
+static inline
+prefix_range *make_prefix_range(char *str, char first, char last) {
+  int len;
+  prefix_range *pr = NULL;
+
+  if( str != NULL )
+    pr  = build_pr(str, first, last);
+
+  else
+    pr = build_pr("", first, last);
+
+  len = strlen(pr->prefix);
+  memcpy(pr->prefix, str, len);
+  pr->prefix[len] = 0;
+
+  return pr_normalize(pr);
 }
 
 /**
@@ -672,6 +695,39 @@ bool pr_overlaps(prefix_range *a, prefix_range *b) {
   return strlen(inter->prefix) > 0 || (inter->first != 0 && inter->last != 0);
 }
 
+
+PG_FUNCTION_INFO_V1(prefix_range_init);
+Datum
+prefix_range_init(PG_FUNCTION_ARGS)
+{
+  text *txt  = PG_GETARG_TEXT_P(0);
+  char *str  = 
+    DatumGetCString(DirectFunctionCall1(textout, PointerGetDatum(txt)));
+
+  text *t_first = PG_GETARG_TEXT_P(1);
+  char *c_first = 
+    DatumGetCString(DirectFunctionCall1(textout, PointerGetDatum(t_first)));
+
+  text *t_last  = PG_GETARG_TEXT_P(2);
+  char *c_last = 
+    DatumGetCString(DirectFunctionCall1(textout, PointerGetDatum(t_last)));
+
+  int flen = t_first == NULL ? 0 : strlen(c_first);
+  int llen = t_last  == NULL ? 0 : strlen(c_last);
+
+  char first, last;
+  
+  if( flen > 1 || llen > 1 )
+    ereport(ERROR,
+	    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+	     errmsg("prefix_range first and last must be at most 1 char long.")
+	     ));
+
+  first = flen == 0 ? 0 : c_first[0];
+  last  = llen == 0 ? 0 : c_last[0];
+
+  PG_RETURN_PREFIX_RANGE_P(make_prefix_range(str, first, last));
+}
 
 PG_FUNCTION_INFO_V1(prefix_range_in);
 Datum

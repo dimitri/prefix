@@ -3,7 +3,11 @@
 ---
 BEGIN;
 
-DROP TYPE IF EXISTS prefix_range CASCADE;
+-- Don't to that any more:
+--  a. not a good idea when reaching production envs (prefix is now stable)
+--  b. support 8.1
+--
+-- DROP TYPE IF EXISTS prefix_range CASCADE;
 
 CREATE OR REPLACE FUNCTION prefix_range_in(cstring)
 RETURNS prefix_range

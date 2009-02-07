@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.43 2008/11/30 16:40:40 dim Exp $
+ * $Id: prefix.c,v 1.44 2009/02/07 13:54:01 dim Exp $
  */
 
 #include <stdio.h>
@@ -41,19 +41,32 @@
 #define  DEBUG_MAKE_VARLENA
 */
 
-PG_MODULE_MAGIC;
-
 /**
- * This code has only been tested with PostgreSQL 8.2 and 8.3
+ * This code has only been tested with PostgreSQL 8.2 and 8.3, and a 8.1
+ * backport has been requested.
+ *
+ * 8.1 didn't have PG_VERSION_NUM, so we'll avoid ugly Makefiles hack by
+ * saying that if we don't have PG_VERSION_NUM, it must be 8.1
  */
-#if PG_VERSION_NUM / 100 != 802 && PG_VERSION_NUM / 100 != 803
+#ifdef PG_VERSION_NUM
+#define PG_MAJOR_VERSION (PG_VERSION_NUM / 100)
+#else
+#define PG_MAJOR_VERSION 801
+#endif
+
+#if PG_MAJOR_VERSION != 801 && PG_MAJOR_VERSION != 802 && PG_MAJOR_VERSION != 803
 #error "Unknown or unsupported postgresql version"
+#endif
+
+/* PG_MODULE_MAGIC was introduced in 8.2. */
+#if PG_MAJOR_VERSION >= 802
+PG_MODULE_MAGIC;
 #endif
 
 /**
  * Define our own varlena size macro depending on PGVER
  */
-#if PG_VERSION_NUM / 100 == 802
+#if PG_VERSION_NUM / 100 <= 802
 #define PREFIX_VARSIZE(x)        (VARSIZE(x) - VARHDRSZ)
 #define PREFIX_VARDATA(x)        (VARDATA(x))
 #define PREFIX_PG_GETARG_TEXT(x) (PG_GETARG_TEXT_P(x))
@@ -1151,12 +1164,17 @@ pr_penalty(PG_FUNCTION_ARGS)
   PG_RETURN_FLOAT4(penalty);
 }
 
+/* Silence out compiler warning in 8.1 builds.
+ * This function is only used in experimental gpr_picksplit_jordan...
+ */
+#if PG_VERSION_NUM > 801
 static int gpr_cmp(const GISTENTRY **e1, const GISTENTRY **e2) {
   prefix_range *k1 = DatumGetPrefixRange((*e1)->key);
   prefix_range *k2 = DatumGetPrefixRange((*e2)->key);
 
   return pr_cmp(k1, k2);
 }
+#endif
 
 /**
  * Median idea from Jordan:
@@ -1201,8 +1219,14 @@ gpr_picksplit_jordan(PG_FUNCTION_ARGS)
     for (i=FirstOffsetNumber; i <= maxoff; i=OffsetNumberNext(i))
       raw_entryvec[i] = &(entryvec->vector[i]);
     
-    /* Sort the raw entry vector. */
+    /* Sort the raw entry vector.  
+     *
+     * It seems that pg_qsort isn't available in 8.1, but this code is
+     * experimental so we simply don't presort.
+     */
+#if PG_VERSION_NUM > 801
     pg_qsort(&raw_entryvec[1], maxoff, sizeof(void *), &gpr_cmp);
+#endif
 
     /* 
      * Find the distance between the middle of the raw entry vector and the

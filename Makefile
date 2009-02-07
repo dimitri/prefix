@@ -1,5 +1,5 @@
 PKGNAME = postgresql-8.3-prefix
-PKGVERS = 0.3
+PKGVERS = 0.4
 
 DEBDIR = /tmp/$(PKGNAME)
 EXPORT = $(DEBDIR)/export/$(PKGNAME)-$(PKGVERS)

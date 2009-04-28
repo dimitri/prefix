@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.44 2009/02/07 13:54:01 dim Exp $
+ * $Id: prefix.c,v 1.45 2009/04/28 16:06:35 dim Exp $
  */
 
 #include <stdio.h>
@@ -434,12 +434,22 @@ bool pr_eq(prefix_range *a, prefix_range *b) {
     && a->last  == b->last;
 }
 
+/*
+ * We invent a prefix_range ordering for convenience, but that's
+ * dangerous. Use the BTree opclass at your own risk.
+ *
+ * On the other hand, when your routing table does contain pretty static
+ * data and you test it carefully or know it will fit into the ordering
+ * simplification, you're good to go.
+ *
+ * Baring bug, the constraint is to have non-overlapping data.
+ */
 static inline
 bool pr_lt(prefix_range *a, prefix_range *b, bool eqval) {
   int cmp = 0;
   int alen = strlen(a->prefix);
   int blen = strlen(b->prefix);
-  int mlen = alen;
+  int mlen = alen; /* minimum length */
   char *p  = a->prefix;
   char *q  = b->prefix;
 
@@ -470,8 +480,19 @@ bool pr_lt(prefix_range *a, prefix_range *b, bool eqval) {
   else if( blen == 0 && b->first != 0 ) {
     return (eqval ? (p[0] <= b->first) : (p[0] < b->first));
   }
-  else
-    return (eqval ? memcmp(p, q, mlen) <= 0 : memcmp(p, q, mlen) < 0);
+  else {
+    /*
+     * When memcmp() on the shorter of p and q returns 0, that means they
+     * share a common prefix: avoid to say that '93' < '9377' and '9377' <
+     * '93'.
+     */
+    cmp = memcmp(p, q, mlen);
+
+    if( cmp == 0 )
+      return (eqval ? alen <= blen : alen < blen);
+
+    return (eqval ? cmp <= 0 : cmp < 0);
+  }
 }
 
 static inline
@@ -510,8 +531,14 @@ bool pr_gt(prefix_range *a, prefix_range *b, bool eqval) {
   else if( blen == 0 && b->first != 0 ) {
     return (eqval ? (p[0] >= b->last) : (p[0] > b->last));
   }
-  else
-    return (eqval ? memcmp(p, q, mlen) >= 0 : memcmp(p, q, mlen) > 0);
+  else {
+    cmp = memcmp(p, q, mlen);
+
+    if( cmp == 0 )
+      return (eqval ? alen >= blen : alen > blen);
+
+    return (eqval ? cmp >= 0 : cmp > 0);
+  }
 }
 
 static inline

@@ -151,28 +151,44 @@ COMMENT ON OPERATOR <>(prefix_range, prefix_range) IS 'not equals?';
 CREATE OPERATOR < (
 	LEFTARG = prefix_range,
 	RIGHTARG = prefix_range,
-	PROCEDURE = prefix_range_lt
+	PROCEDURE = prefix_range_lt,
+	COMMUTATOR = > , 
+	NEGATOR = >= ,
+   	RESTRICT = scalarltsel, 
+	JOIN = scalarltjoinsel
 );
 COMMENT ON OPERATOR <(prefix_range, prefix_range) IS 'less-than';
 
 CREATE OPERATOR <= (
 	LEFTARG = prefix_range,
 	RIGHTARG = prefix_range,
-	PROCEDURE = prefix_range_le
+	PROCEDURE = prefix_range_le,
+	COMMUTATOR = >= , 
+	NEGATOR = > ,
+   	RESTRICT = scalarltsel, 
+	JOIN = scalarltjoinsel
 );
 COMMENT ON OPERATOR <=(prefix_range, prefix_range) IS 'less-than-or-equal';
 
 CREATE OPERATOR > (
 	LEFTARG = prefix_range,
 	RIGHTARG = prefix_range,
-	PROCEDURE = prefix_range_gt
+	PROCEDURE = prefix_range_gt,
+	COMMUTATOR = < , 
+	NEGATOR = <= ,
+   	RESTRICT = scalargtsel, 
+	JOIN = scalargtjoinsel
 );
 COMMENT ON OPERATOR >(prefix_range, prefix_range) IS 'greater-than';
 
 CREATE OPERATOR >= (
 	LEFTARG = prefix_range,
 	RIGHTARG = prefix_range,
-	PROCEDURE = prefix_range_ge
+	PROCEDURE = prefix_range_ge,
+	COMMUTATOR = <= , 
+	NEGATOR = < ,
+   	RESTRICT = scalargtsel, 
+	JOIN = scalargtjoinsel
 );
 COMMENT ON OPERATOR >=(prefix_range, prefix_range) IS 'greater-than-or-equal';
 

@@ -1,10 +1,11 @@
-PKGNAME = postgresql-8.3-prefix
+PKGNAME = prefix
 PKGVERS = 0.4
 
 DEBDIR = /tmp/$(PKGNAME)
 EXPORT = $(DEBDIR)/export/$(PKGNAME)-$(PKGVERS)
-ORIG   = $(DEBDIR)/export/prefix_$(PKGVERS).orig.tar.gz
-ARCHIVE= $(DEBDIR)/export/$(PKGNAME)-$(PGKVERS).tar.gz
+ORIG   = $(DEBDIR)/export/$(PKGNAME)_$(PKGVERS).orig.tar.gz
+ARCHIVE= $(DEBDIR)/export/$(PKGNAME)-$(PKGVERS).tar.gz
+DEBEXTS= {gz,changes,build,dsc}
 
 MODULES = prefix
 DATA_built = prefix.sql
@@ -50,7 +51,8 @@ deb:
 
 	# build the debian package and copy them to ..
 	(cd $(EXPORT) && debuild)
-	cp -a $(DEBDIR)/export/prefix* ..
-	cp -a $(DEBDIR)/export/$(PKGNAME)[_-]$(PKGVERS)??[._]* ..
+
+	cp -a $(DEBDIR)/export/*.deb ..
+	cp -a $(DEBDIR)/export/$(PKGNAME)[_-]$(PKGVERS)*.$(DEBEXTS) ..
 	cp -a $(ARCHIVE) ..
 	cp -a $(ORIG) ..

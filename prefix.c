@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.45 2009/04/28 16:06:35 dim Exp $
+ * $Id: prefix.c,v 1.46 2009/05/13 09:00:36 dim Exp $
  */
 
 #include <stdio.h>
@@ -54,7 +54,8 @@
 #define PG_MAJOR_VERSION 801
 #endif
 
-#if PG_MAJOR_VERSION != 801 && PG_MAJOR_VERSION != 802 && PG_MAJOR_VERSION != 803
+#if PG_MAJOR_VERSION != 801 && PG_MAJOR_VERSION != 802     \
+    && PG_MAJOR_VERSION != 803 && PG_MAJOR_VERSION != 804
 #error "Unknown or unsupported postgresql version"
 #endif
 
@@ -1191,11 +1192,17 @@ pr_penalty(PG_FUNCTION_ARGS)
   PG_RETURN_FLOAT4(penalty);
 }
 
-/* Silence out compiler warning in 8.1 builds.
- * This function is only used in experimental gpr_picksplit_jordan...
+/*
+ * Don't bother compiling this for 8.1, where pg_qsort ain't available.
+ *
+ * That's an experimental feature anyway, only used in the
+ * gist_prefix_range_jordan_ops opclass, which is not talked about in the
+ * user documentation of the module.
  */
 #if PG_VERSION_NUM > 801
-static int gpr_cmp(const GISTENTRY **e1, const GISTENTRY **e2) {
+static int gpr_cmp(const void *a, const void *b) {
+  GISTENTRY **e1 = (GISTENTRY **)a;
+  GISTENTRY **e2 = (GISTENTRY **)b;
   prefix_range *k1 = DatumGetPrefixRange((*e1)->key);
   prefix_range *k2 = DatumGetPrefixRange((*e2)->key);
 

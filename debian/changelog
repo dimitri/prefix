@@ -1,3 +1,10 @@
+prefix (0.4-1~dev2) unstable; urgency=low
+
+  * Support for PostgreSQL 8.4 (beta1 is released)
+  * Clean (at long last) pg_qsort function pointer argument type (warning free)
+
+ -- Dimitri Fontaine <dim@tapoueh.org>  Wed, 13 May 2009 10:25:19 +0200
+
 prefix (0.4-1~dev1) unstable; urgency=low
 
   * Support for PostgreSQL 8.1 (missing build support --- detection)

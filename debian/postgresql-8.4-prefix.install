@@ -1,0 +1,2 @@
+prefix.so usr/lib/postgresql/8.4/lib
+prefix.sql usr/share/postgresql/8.4/contrib

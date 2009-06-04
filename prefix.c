@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.47 2009/06/04 12:54:43 dim Exp $
+ * $Id: prefix.c,v 1.48 2009/06/04 16:59:53 dim Exp $
  */
 
 #include <stdio.h>
@@ -31,6 +31,7 @@
 #define  DEBUG_UNION
 #define  DEBUG_PENALTY
 #define  DEBUG_PICKSPLIT
+#define  DEBUG_CONSISTENT
 #define  DEBUG_PRESORT_GP
 #define  DEBUG_PRESORT_MAX
 #define  DEBUG_PRESORT_UNIONS
@@ -1007,17 +1008,44 @@ gpr_consistent(PG_FUNCTION_ARGS)
     prefix_range *query = PG_GETARG_PREFIX_RANGE_P(1);
     StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
     prefix_range *key = DatumGetPrefixRange(entry->key);
-    bool retval;
 
-    /**
-     * We only have 1 Strategy (operator @>)
-     * and we want to avoid compiler complaints that we do not use it.
-     */ 
-    Assert(strategy == 1);
-    (void) strategy;
-    retval = pr_contains(key, query, true);
+    /*
+	OPERATOR	1	@>,
+	OPERATOR	2	<@,
+	OPERATOR	3	=,
+	OPERATOR	4	&&,
+    */
 
-    PG_RETURN_BOOL(retval);
+    switch (strategy) {
+    case 1:
+      PG_RETURN_BOOL( pr_contains(key, query, true) );
+
+    case 2:
+      PG_RETURN_BOOL( pr_contains(query, key, true) );
+
+    case 3:
+      if( GIST_LEAF(entry) ) {
+
+#ifdef DEBUG_CONSISTENT
+	elog(NOTICE, "gpr_consistent: %s %c= %s",
+	     
+	     DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(key))),
+	     pr_eq(key, query) ? '=' : '!',
+	     DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(query))));
+
+#endif
+	PG_RETURN_BOOL( pr_eq(key, query) );
+      }
+      else {
+	PG_RETURN_BOOL( pr_contains(key, query, true) );
+      }
+
+    case 4:
+      PG_RETURN_BOOL( pr_overlaps(key, query) );
+
+    default:
+      PG_RETURN_BOOL(false);
+    }    
 }
 
 /*

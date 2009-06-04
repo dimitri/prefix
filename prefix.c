@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.46 2009/05/13 09:00:36 dim Exp $
+ * $Id: prefix.c,v 1.47 2009/06/04 12:54:43 dim Exp $
  */
 
 #include <stdio.h>
@@ -800,8 +800,8 @@ prefix_range_out(PG_FUNCTION_ARGS)
     sprintf(out, "%s[%c-%c]", pr->prefix, pr->first, pr->last);
   }
   else {
-    out = (char *)palloc((strlen(pr->prefix)+3) * sizeof(char));
-    sprintf(out, "%s[]", pr->prefix);
+    out = (char *)palloc((strlen(pr->prefix)+1) * sizeof(char));
+    sprintf(out, "%s", pr->prefix);
   }
   PG_RETURN_CSTRING(out);
 }

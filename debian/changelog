@@ -1,3 +1,9 @@
+prefix (0.4-1~dev3) unstable; urgency=low
+
+  * Change prefix_range_out to stop displaying useless and confusing []
+
+ -- Dimitri Fontaine <dim@tapoueh.org>  Thu, 04 Jun 2009 14:49:51 +0200
+
 prefix (0.4-1~dev2) unstable; urgency=low
 
   * Support for PostgreSQL 8.4 (beta1 is released)

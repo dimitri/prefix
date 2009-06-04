@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.48 2009/06/04 16:59:53 dim Exp $
+ * $Id: prefix.c,v 1.49 2009/06/04 20:10:58 dim Exp $
  */
 
 #include <stdio.h>
@@ -52,10 +52,10 @@
 #ifdef PG_VERSION_NUM
 #define PG_MAJOR_VERSION (PG_VERSION_NUM / 100)
 #else
-#define PG_MAJOR_VERSION 801
+#define PG_MAJOR_VERSION PREFIX_PGVER 
 #endif
 
-#if PG_MAJOR_VERSION != 801 && PG_MAJOR_VERSION != 802     \
+#if    PG_MAJOR_VERSION != 801 && PG_MAJOR_VERSION != 802     \
     && PG_MAJOR_VERSION != 803 && PG_MAJOR_VERSION != 804
 #error "Unknown or unsupported postgresql version"
 #endif

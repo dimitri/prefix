@@ -9,12 +9,18 @@ DEBEXTS= {gz,changes,build,dsc}
 
 MODULES = prefix
 DATA_built = prefix.sql
-DOCS = $(patsubst %.txt,%.html,$(wildcard *.txt))
+DOCS = $(wildcard *.txt)
+
+# support for 8.1 which didn't expose PG_VERSION_NUM -- another trick from ip4r
+PREFIX_PGVER = $(shell echo $(VERSION) | awk -F. '{ print $$1*100+$$2 }')
+PG_CPPFLAGS  = -DPREFIX_PGVER=$(PREFIX_PGVER)
 
 PGXS = $(shell pg_config --pgxs)
 include $(PGXS)
 
-html: $(DOCS)
+.PHONY: html site deb
+
+html: ${DOCS:.txt=.html}
 
 %.html:%.txt
 	asciidoc -a toc $<

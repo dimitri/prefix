@@ -1,6 +1,9 @@
-prefix (0.4-1~dev3) unstable; urgency=low
+prefix (1.0-1~dev1) experimental; urgency=low
 
   * Change prefix_range_out to stop displaying useless and confusing []
+  * Added support for GiST index lookups for operators <@, =, &&
+  * Added detection of version 8.1 of PostgreSQL, similar to ip4r
+  * Fixed wrong build dependancy to README.html
 
  -- Dimitri Fontaine <dim@tapoueh.org>  Thu, 04 Jun 2009 14:49:51 +0200
 
@@ -27,7 +30,7 @@ prefix (0.3-1) unstable; urgency=low
  -- Dimitri Fontaine <dim@tapoueh.org>  Mon, 28 Jul 2008 11:06:35 +0200
 
 prefix (0.2-1) unstable; urgency=low
-  
+
   * Initial release
 
  -- Dimitri Fontaine <dim@tapoueh.org>  Tue, 22 Apr 2008 11:42:09 +0200

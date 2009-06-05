@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.49 2009/06/04 20:10:58 dim Exp $
+ * $Id: prefix.c,v 1.50 2009/06/05 21:05:23 dim Exp $
  */
 
 #include <stdio.h>
@@ -24,6 +24,7 @@
 #include <math.h>
 
 #define  DEBUG
+#define  DEBUG_CONSISTENT
 /**
  * We use those DEBUG defines in the code, uncomment them to get very
  * verbose output.
@@ -1000,31 +1001,27 @@ Datum gpr_union(PG_FUNCTION_ARGS);
 Datum gpr_same(PG_FUNCTION_ARGS);
 Datum pr_penalty(PG_FUNCTION_ARGS);
 
-PG_FUNCTION_INFO_V1(gpr_consistent);
-Datum
-gpr_consistent(PG_FUNCTION_ARGS)
-{
-    GISTENTRY *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
-    prefix_range *query = PG_GETARG_PREFIX_RANGE_P(1);
-    StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
-    prefix_range *key = DatumGetPrefixRange(entry->key);
-
-    /*
-	OPERATOR	1	@>,
-	OPERATOR	2	<@,
-	OPERATOR	3	=,
-	OPERATOR	4	&&,
-    */
+/*
+ * Internal implementation of consistent
+ *
+  OPERATOR	1	@>,
+  OPERATOR	2	<@,
+  OPERATOR	3	=,
+  OPERATOR	4	&&,
+*/
+static inline
+bool pr_consistent(StrategyNumber strategy, 
+		   prefix_range *key, prefix_range *query, bool is_leaf) {
 
     switch (strategy) {
     case 1:
-      PG_RETURN_BOOL( pr_contains(key, query, true) );
+      return pr_contains(key, query, true);
 
     case 2:
-      PG_RETURN_BOOL( pr_contains(query, key, true) );
+      return pr_contains(query, key, true);
 
     case 3:
-      if( GIST_LEAF(entry) ) {
+      if( is_leaf ) {
 
 #ifdef DEBUG_CONSISTENT
 	elog(NOTICE, "gpr_consistent: %s %c= %s",
@@ -1034,18 +1031,54 @@ gpr_consistent(PG_FUNCTION_ARGS)
 	     DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(query))));
 
 #endif
-	PG_RETURN_BOOL( pr_eq(key, query) );
+	return pr_eq(key, query);
       }
       else {
-	PG_RETURN_BOOL( pr_contains(key, query, true) );
+	return pr_contains(key, query, true);
       }
 
     case 4:
-      PG_RETURN_BOOL( pr_overlaps(key, query) );
+      return pr_overlaps(key, query);
 
     default:
-      PG_RETURN_BOOL(false);
-    }    
+      return false;
+    }
+}
+
+/*
+ * The consistent function signature has changed in 8.4 to include RECHECK
+ * handling, but the signature declared in the OPERATOR CLASS is not
+ * considered at all. 
+ *
+ * Still the function is called by mean of the fmgr, so we know whether
+ * we're called with pre-8.4 conventions or not by checking PG_NARGS().
+ *
+ * In all cases, we currently ignore the oid parameter (subtype).
+ */
+PG_FUNCTION_INFO_V1(gpr_consistent);
+Datum
+gpr_consistent(PG_FUNCTION_ARGS)
+{
+    GISTENTRY *entry = (GISTENTRY *) PG_GETARG_POINTER(0);
+    prefix_range *query = PG_GETARG_PREFIX_RANGE_P(1);
+    StrategyNumber strategy = (StrategyNumber) PG_GETARG_UINT16(2);
+    prefix_range *key = DatumGetPrefixRange(entry->key);
+    bool *recheck;
+
+    Assert( PG_NARGS() == 4 || PG_NARGS() == 5);
+
+    if( PG_NARGS() == 5 ) {
+      /*
+       * New API in 8.4:
+       *  consistent(internal, data_type, smallint, oid, internal)
+       *
+       * We don't ever want to recheck: index ain't lossy, we store
+       * prefix_range keys on the leaves.
+       */
+      recheck  = (bool *) PG_GETARG_POINTER(4);
+      *recheck = false;
+    }
+    PG_RETURN_BOOL( pr_consistent(strategy, key, query, GIST_LEAF(entry)) );
 }
 
 /*

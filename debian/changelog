@@ -4,6 +4,7 @@ prefix (1.0-1~dev1) experimental; urgency=low
   * Added support for GiST index lookups for operators <@, =, &&
   * Added detection of version 8.1 of PostgreSQL, similar to ip4r
   * Fixed wrong build dependancy to README.html
+  * Support new 8.4 consistent function signature, handle recheck in the C code
 
  -- Dimitri Fontaine <dim@tapoueh.org>  Thu, 04 Jun 2009 14:49:51 +0200
 

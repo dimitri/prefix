@@ -245,7 +245,17 @@ AS
 	FUNCTION	1	prefix_range_cmp(prefix_range, prefix_range);
 
 
-CREATE OR REPLACE FUNCTION gpr_consistent(internal, prefix_range, prefix_range)
+--
+-- Up until 8.4, consistent took 3 arguments, then 5. In all cases, the
+-- CREATE OPERATOR CLASS command will not check this.
+--
+
+CREATE OR REPLACE FUNCTION gpr_consistent(internal, prefix_range, smallint, oid)
+RETURNS bool
+AS 'MODULE_PATHNAME'
+LANGUAGE 'C';
+
+CREATE OR REPLACE FUNCTION gpr_consistent(internal, prefix_range, smallint, oid, internal)
 RETURNS bool
 AS 'MODULE_PATHNAME'
 LANGUAGE 'C';
@@ -303,7 +313,7 @@ AS
 	OPERATOR	2	<@,
 	OPERATOR	3	=,
 	OPERATOR	4	&&,
-	FUNCTION	1	gpr_consistent (internal, prefix_range, prefix_range),
+	FUNCTION	1	gpr_consistent (internal, prefix_range, smallint, oid, internal),
 	FUNCTION	2	gpr_union (internal, internal),
 	FUNCTION	3	gpr_compress (internal),
 	FUNCTION	4	gpr_decompress (internal),
@@ -315,7 +325,7 @@ CREATE OPERATOR CLASS gist_prefix_range_presort_ops
 FOR TYPE prefix_range USING gist 
 AS
 	OPERATOR	1	@>,
-	FUNCTION	1	gpr_consistent (internal, prefix_range, prefix_range),
+	FUNCTION	1	gpr_consistent (internal, prefix_range, smallint, oid, internal),
 	FUNCTION	2	gpr_union (internal, internal),
 	FUNCTION	3	gpr_compress (internal),
 	FUNCTION	4	gpr_decompress (internal),
@@ -327,7 +337,7 @@ CREATE OPERATOR CLASS gist_prefix_range_jordan_ops
 FOR TYPE prefix_range USING gist 
 AS
 	OPERATOR	1	@>,
-	FUNCTION	1	gpr_consistent (internal, prefix_range, prefix_range),
+	FUNCTION	1	gpr_consistent (internal, prefix_range, smallint, oid, internal),
 	FUNCTION	2	gpr_union (internal, internal),
 	FUNCTION	3	gpr_compress (internal),
 	FUNCTION	4	gpr_decompress (internal),

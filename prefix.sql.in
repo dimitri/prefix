@@ -253,22 +253,22 @@ AS
 CREATE OR REPLACE FUNCTION gpr_consistent(internal, prefix_range, smallint, oid)
 RETURNS bool
 AS 'MODULE_PATHNAME'
-LANGUAGE 'C';
+LANGUAGE 'C' IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_consistent(internal, prefix_range, smallint, oid, internal)
 RETURNS bool
 AS 'MODULE_PATHNAME'
-LANGUAGE 'C';
+LANGUAGE 'C' IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_compress(internal)
 RETURNS internal 
 AS 'MODULE_PATHNAME'
-LANGUAGE 'C';
+LANGUAGE 'C' IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_decompress(internal)
 RETURNS internal 
 AS 'MODULE_PATHNAME'
-LANGUAGE 'C';
+LANGUAGE 'C' IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_penalty(internal, internal, internal)
 RETURNS internal
@@ -283,27 +283,27 @@ LANGUAGE 'C' STRICT;
 CREATE OR REPLACE FUNCTION gpr_picksplit(internal, internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
-LANGUAGE 'C';
+LANGUAGE 'C' IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_picksplit_presort(internal, internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
-LANGUAGE 'C';
+LANGUAGE 'C' IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_picksplit_jordan(internal, internal)
 RETURNS internal
 AS 'MODULE_PATHNAME'
-LANGUAGE 'C';
+LANGUAGE 'C' IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_union(internal, internal)
 RETURNS text
 AS 'MODULE_PATHNAME'
-LANGUAGE 'C';
+LANGUAGE 'C' IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_same(prefix_range, prefix_range, internal)
 RETURNS internal 
 AS 'MODULE_PATHNAME'
-LANGUAGE 'C';
+LANGUAGE 'C' IMMUTABLE STRICT;
 
 
 CREATE OPERATOR CLASS gist_prefix_range_ops

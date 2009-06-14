@@ -162,14 +162,14 @@ The operators <=, <, =, <>, >= and > are read as usual, @> is read
 *contains*, <@ is read *is contained by*, && is read *overlaps*, and | is
 "union" and "&" is "intersect".
 
-  prefix=# select a, b, 
-     a <= b as "<=", a < b as "<", a = b as "=", a <> b as "<>", a >= b as ">=", a > b as ">",
-     a @> b as "@>", a <@ b as "<@", a && b as "&&" 
+  prefix=# select a, b,
+    a <= b as "<=", a < b as "<", a = b as "=", a <> b as "<>", a >= b as ">=", a > b as ">",
+    a @> b as "@>", a <@ b as "<@", a && b as "&&"
   from  (select a::prefix_range, b::prefix_range
-           from (values('123', '123'), 
-                       ('123', '124'), 
-                       ('123', '123[4-5]'), 
-                       ('123[4-5]', '123[2-7]'), 
+           from (values('123', '123'),
+                       ('123', '124'),
+                       ('123', '123[4-5]'),
+                       ('123[4-5]', '123[2-7]'),
                        ('123', '[2-3]')) as t(a, b)
         ) as x;
       a     |    b     | <= | < | = | <> | >= | > | @> | <@ | && 
@@ -177,7 +177,7 @@ The operators <=, <, =, <>, >= and > are read as usual, @> is read
    123      | 123      | t  | f | t | f  | t  | f | t  | t  | t
    123      | 124      | t  | t | f | t  | f  | f | f  | f  | f
    123      | 123[4-5] | t  | t | f | t  | f  | f | t  | f  | t
-   123[4-5] | 123[2-7] | f  | f | f | t  | f  | f | f  | t  | t
+   123[4-5] | 123[2-7] | f  | f | f | t  | t  | t | f  | t  | t
    123      | [2-3]    | t  | t | f | t  | f  | f | f  | f  | f
   (5 rows)
 

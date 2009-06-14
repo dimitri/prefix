@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.50 2009/06/05 21:05:23 dim Exp $
+ * $Id: prefix.c,v 1.51 2009/06/14 23:13:46 dim Exp $
  */
 
 #include <stdio.h>
@@ -447,8 +447,13 @@ bool pr_eq(prefix_range *a, prefix_range *b) {
  *
  * Baring bug, the constraint is to have non-overlapping data.
  */
-static inline
+
+/*static inline
 bool pr_lt(prefix_range *a, prefix_range *b, bool eqval) {
+*/
+
+static inline
+int pr_cmp(prefix_range *a, prefix_range *b) {
   int cmp = 0;
   int alen = strlen(a->prefix);
   int blen = strlen(b->prefix);
@@ -456,103 +461,62 @@ bool pr_lt(prefix_range *a, prefix_range *b, bool eqval) {
   char *p  = a->prefix;
   char *q  = b->prefix;
 
+  /*
+   * First case, common prefix length
+   */
   if( alen == blen ) {
     cmp = memcmp(p, q, alen);
 
-    if( cmp < 0 ) 
-      return true;
+    /* Uncommon prefix, easy to compare */
+    if( cmp != 0 ) 
+      return cmp;
 
-    else if( cmp == 0 ) {
-      if( a->first == 0 ) {
-	if( b->first == 0 )
-	  return eqval;
-	return true;
-      }
-      else	
-	return (eqval ? a->first <= b->first : a->first < b->first);
-    }
+    /* Common prefix, check for (sub)ranges */
     else
-      return false;
+      return (a->first == b->first) ? (a->last - b->last) : (a->first - b->first);
   }
+
+  /* For memcmp() safety, we need the minimum length */
   if( mlen > blen )
     mlen = blen;
 
+  /*
+   * Don't forget we may have [x-y] prefix style, that's empty prefix, only range.
+   */
   if( alen == 0 && a->first != 0 ) {
-    return (eqval ? (a->first <= q[0]) : (a->first < q[0]));
+    /* return (eqval ? (a->first <= q[0]) : (a->first < q[0])); */
+    return a->first - q[0];
   }
   else if( blen == 0 && b->first != 0 ) {
-    return (eqval ? (p[0] <= b->first) : (p[0] < b->first));
+    /* return (eqval ? (p[0] <= b->first) : (p[0] < b->first)); */
+    return p[0] - b->first;
   }
-  else {
-    /*
-     * When memcmp() on the shorter of p and q returns 0, that means they
-     * share a common prefix: avoid to say that '93' < '9377' and '9377' <
-     * '93'.
-     */
-    cmp = memcmp(p, q, mlen);
 
-    if( cmp == 0 )
-      return (eqval ? alen <= blen : alen < blen);
+  /*
+   * General case
+   *
+   * When memcmp() on the shorter of p and q returns 0, that means they
+   * share a common prefix: avoid to say that '93' < '9377' and '9377' <
+   * '93'.
+   */
+  cmp = memcmp(p, q, mlen);
+  
+  if( cmp == 0 )
+    return (a->first == b->first) ? (a->last - b->last) : (a->first - b->first);
 
-    return (eqval ? cmp <= 0 : cmp < 0);
-  }
+  return cmp;
+}
+
+static inline
+bool pr_lt(prefix_range *a, prefix_range *b, bool eqval) {
+  int cmp = pr_cmp(a, b);
+  return eqval ? cmp <= 0 : cmp < 0;
 }
 
 static inline
 bool pr_gt(prefix_range *a, prefix_range *b, bool eqval) {
-  int cmp = 0;
-  int alen = strlen(a->prefix);
-  int blen = strlen(b->prefix);
-  int mlen = alen;
-  char *p  = a->prefix;
-  char *q  = b->prefix;
-
-  if( alen == blen ) {
-    cmp = memcmp(p, q, alen);
-
-    if( cmp > 0 )
-      return true;
-
-    else if( cmp == 0 ) {
-      if( a->last == 0 ) {
-	if( b->last == 0 )
-	  return eqval;
-	return false;
-      }
-      else	
-	return (eqval ? a->last >= b->last : a->last > b->last);
-    }
-    else
-      return false;
-  }
-  if( mlen > blen )
-    mlen = blen;
-
-  if( alen == 0 && a->last != 0 ) {
-    return (eqval ? (a->last >= q[0]) : (a->last > q[0]));
-  }
-  else if( blen == 0 && b->first != 0 ) {
-    return (eqval ? (p[0] >= b->last) : (p[0] > b->last));
-  }
-  else {
-    cmp = memcmp(p, q, mlen);
-
-    if( cmp == 0 )
-      return (eqval ? alen >= blen : alen > blen);
-
-    return (eqval ? cmp >= 0 : cmp > 0);
-  }
-}
-
-static inline
-int pr_cmp(prefix_range *a, prefix_range *b) {
-  if( pr_eq(a, b) )
-    return 0;
-
-  if( pr_lt(a, b, false) )
-    return -1;
-
-  return 1;
+  int cmp = pr_cmp(a, b);
+  return eqval ? cmp >= 0 : cmp > 0;
 }
 
 static inline

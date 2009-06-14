@@ -26,7 +26,7 @@ html: ${DOCS:.txt=.html}
 	asciidoc -a toc $<
 
 site: html
-	scp ${DOCS} cvs.pgfoundry.org:/home/pgfoundry.org/groups/prefix/htdocs
+	scp ${DOCS:.txt=.html} cvs.pgfoundry.org:/home/pgfoundry.org/groups/prefix/htdocs
 
 deb:
 	# working copy from where to make the .orig archive

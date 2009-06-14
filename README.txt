@@ -107,6 +107,98 @@ recent version of +prefix+ than +0.2+.
   
   Time: 0,771 ms
 
+As of version 1.0, prefix_range GiST index supports also queries using the
+<@, && and = operators (see below).
+
+=== creating prefix_range, cast to and from text
+
+There's a *constructor* function:
+
+  prefix=# select prefix_range('123');
+   prefix_range 
+  --------------
+   123
+  (1 row)
+
+  prefix=# select prefix_range('123', '4', '5');
+   prefix_range 
+  --------------
+   123[4-5]
+  (1 row)
+
+Casting from unknown literal or text is as easy as usual:
+
+  prefix=# select '123'::prefix_range;
+   prefix_range 
+  --------------
+   123
+  (1 row)
+
+  prefix=# select x, x::prefix_range from (values('123'), ('123[4-5]'), ('[2-3]')) as t(x);
+      x     |    x     
+  ----------+----------
+   123      | 123
+   123[4-5] | 123[4-5]
+   [2-3]    | [2-3]
+  (3 rows)
+
+And two casts are provided:
+
+  CREATE CAST (text as prefix_range) WITH FUNCTION prefix_range(text) AS IMPLICIT;
+  CREATE CAST (prefix_range as text) WITH FUNCTION text(prefix_range);
+
+Which means you can use text expression in a context where a prefix_range is
+expected and it'll get implicit casting, but prefix_range to text has to be
+asked explicitely, so that you don't get strange behavior.
+
+=== Provided operators
+
+The prefix module is all about indexing prefix lookups, but in order to be
+able to do this with some efficiency, it has to know a lot about prefix
+ranges, such as basic comparing, containment, union, intersection and
+overlapping.
+
+The operators <=, <, =, <>, >= and > are read as usual, @> is read
+*contains*, <@ is read *is contained by*, && is read *overlaps*, and | is
+"union" and "&" is "intersect".
+
+  prefix=# select a, b, 
+     a <= b as "<=", a < b as "<", a = b as "=", a <> b as "<>", a >= b as ">=", a > b as ">",
+     a @> b as "@>", a <@ b as "<@", a && b as "&&" 
+  from  (select a::prefix_range, b::prefix_range
+           from (values('123', '123'), 
+                       ('123', '124'), 
+                       ('123', '123[4-5]'), 
+                       ('123[4-5]', '123[2-7]'), 
+                       ('123', '[2-3]')) as t(a, b)
+        ) as x;
+      a     |    b     | <= | < | = | <> | >= | > | @> | <@ | && 
+  ----------+----------+----+---+---+----+----+---+----+----+----
+   123      | 123      | t  | f | t | f  | t  | f | t  | t  | t
+   123      | 124      | t  | t | f | t  | f  | f | f  | f  | f
+   123      | 123[4-5] | t  | t | f | t  | f  | f | t  | f  | t
+   123[4-5] | 123[2-7] | f  | f | f | t  | f  | f | f  | t  | t
+   123      | [2-3]    | t  | t | f | t  | f  | f | f  | f  | f
+  (5 rows)
+
+  prefix=# select a, b, a | b as union, a & b as intersect 
+    from  (select a::prefix_range, b::prefix_range
+             from (values('123', '123'), 
+                         ('123', '124'), 
+                         ('123', '123[4-5]'),
+                         ('123[4-5]', '123[2-7]'), 
+                         ('123', '[2-3]')) as t(a, b)
+          ) as x;
+      a     |    b     |  union   | intersect 
+  ----------+----------+----------+-----------
+   123      | 123      | 123      | 123
+   123      | 124      | 12[3-4]  | 
+   123      | 123[4-5] | 123      | 123
+   123[4-5] | 123[2-7] | 123[2-7] | 123[4-5]
+   123      | [2-3]    | [1-3]    | 
+  (5 rows)
+
+
 == See also
 
 This link:TESTS.html[Tests] page is more developper oriented material,

@@ -1,4 +1,11 @@
-prefix (1.0-1~dev1) experimental; urgency=low
+prefix (1.0~rc1-1) unstable; urgency=low
+
+  * Some more documentation (operators)
+  * Fix (again) the < and > operators for BTree support, refactor the code
+
+ -- Dimitri Fontaine <dim@tapoueh.org>  Tue, 23 Jun 2009 09:41:07 +0200
+
+prefix (1.0~dev1-1) unstable; urgency=low
 
   * Change prefix_range_out to stop displaying useless and confusing []
   * Added support for GiST index lookups for operators <@, =, &&

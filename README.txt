@@ -53,7 +53,7 @@ It's as easy as:
   \copy prefixes from 'prefixes.fr.csv' with delimiter ; csv quote '"'
 
   create index idx_prefix on prefixes using gist(prefix gist_prefix_range_ops);
-
+ 
 === Simple tests:
 
   dim=# select '123'::prefix_range @> '123456';

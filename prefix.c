@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.51 2009/06/14 23:13:46 dim Exp $
+ * $Id: prefix.c,v 1.52 2009/06/23 09:09:05 dim Exp $
  */
 
 #include <stdio.h>
@@ -24,7 +24,6 @@
 #include <math.h>
 
 #define  DEBUG
-#define  DEBUG_CONSISTENT
 /**
  * We use those DEBUG defines in the code, uncomment them to get very
  * verbose output.

@@ -1,5 +1,5 @@
 PKGNAME = prefix
-PKGVERS = 1.0~rc1
+PKGVERS = 1.0~rc2
 
 DEBDIR = /tmp/$(PKGNAME)
 EXPORT = $(DEBDIR)/export/$(PKGNAME)-$(PKGVERS)
@@ -15,7 +15,8 @@ DOCS = $(wildcard *.txt)
 PREFIX_PGVER = $(shell echo $(VERSION) | awk -F. '{ print $$1*100+$$2 }')
 PG_CPPFLAGS  = -DPREFIX_PGVER=$(PREFIX_PGVER)
 
-PGXS = $(shell pg_config --pgxs)
+PG_CONFIG ?= pg_config
+PGXS = $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 
 .PHONY: html site deb
@@ -37,13 +38,11 @@ deb:
 
 	# get rid of temp and build files
 	for n in ".#*" "*~" "build-stamp" "configure-stamp" "prefix.sql" "prefix.so"; do \
-	  find $(EXPORT) -name "$$n" -print0|xargs -0 echo rm -f; \
 	  find $(EXPORT) -name "$$n" -print0|xargs -0 rm -f; \
 	done
 
 	# get rid of CVS dirs
 	for n in "CVS" "CVSROOT"; do \
-	  find $(EXPORT) -type d -name "$$n" -print0|xargs -0 rm -rf; \
 	  find $(EXPORT) -type d -name "$$n" -print0|xargs -0 rm -rf; \
 	done
 

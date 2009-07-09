@@ -126,6 +126,11 @@ RETURNS prefix_range
 AS 'MODULE_PATHNAME'
 LANGUAGE 'C' IMMUTABLE STRICT;
 
+CREATE OR REPLACE FUNCTION length(prefix_range)
+RETURNS int
+AS 'MODULE_PATHNAME', 'prefix_range_length'
+LANGUAGE 'C' IMMUTABLE STRICT;
+
 CREATE OPERATOR = (
 	LEFTARG = prefix_range,
 	RIGHTARG = prefix_range,

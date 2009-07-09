@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.52 2009/06/23 09:09:05 dim Exp $
+ * $Id: prefix.c,v 1.53 2009/07/09 11:11:56 dim Exp $
  */
 
 #include <stdio.h>
@@ -107,6 +107,7 @@ Datum prefix_range_send(PG_FUNCTION_ARGS);
 Datum prefix_range_cast_to_text(PG_FUNCTION_ARGS);
 Datum prefix_range_cast_from_text(PG_FUNCTION_ARGS);
 
+Datum prefix_range_length(PG_FUNCTION_ARGS);
 Datum prefix_range_eq(PG_FUNCTION_ARGS);
 Datum prefix_range_neq(PG_FUNCTION_ARGS);
 Datum prefix_range_lt(PG_FUNCTION_ARGS);
@@ -423,6 +424,24 @@ struct varlena *make_varlena(prefix_range *pr) {
     return vdat;
   }
   return NULL;
+}
+
+/*
+ * Allow users to use length(prefix) rather than length(prefix::text), and
+ * while at it, provides an implementation which won't count the displaying
+ * artifacts that are the [] and -.
+ */
+static inline
+int pr_length(prefix_range *pr) {
+  int len = strlen(pr->prefix);
+  
+  if( pr->first != 0 )
+    len += 1;
+
+  if( pr->last != 0 )
+    len += 1;
+
+  return len;
 }
 
 static inline
@@ -824,6 +843,13 @@ prefix_range_cast_to_text(PG_FUNCTION_ARGS)
     PG_RETURN_TEXT_P(out);
   }
   PG_RETURN_NULL();
+}
+
+PG_FUNCTION_INFO_V1(prefix_range_length);
+Datum
+prefix_range_length(PG_FUNCTION_ARGS)
+{
+  PG_RETURN_INT32( pr_length(PG_GETARG_PREFIX_RANGE_P(0)) );
 }
 
 PG_FUNCTION_INFO_V1(prefix_range_eq);

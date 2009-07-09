@@ -1,7 +1,10 @@
 #!/usr/bin/make -f
 
-CFLAGS83 = $(shell /usr/lib/postgresql/8.3/bin/pg_config --cflags)
-CFLAGS84 = $(shell /usr/lib/postgresql/8.4/bin/pg_config --cflags)
+PG_CFG83 = /usr/lib/postgresql/8.3/bin/pg_config
+PG_CFG84 = /usr/lib/postgresql/8.4/bin/pg_config
+
+CFLAGS83 = $(shell $(PG_CFG83) --cflags)
+CFLAGS84 = $(shell $(PG_CFG84) --cflags)
 
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
 	CFLAGS83 += -O0
@@ -11,16 +14,18 @@ else
 	CFLAGS84 += -O2
 endif
 
-PGXS83 = $(shell /usr/lib/postgresql/8.3/bin/pg_config --pgxs)
-PGXS84 = $(shell /usr/lib/postgresql/8.4/bin/pg_config --pgxs)
+SRCDIR = $(CURDIR)
+TGT83  = $(CURDIR)/debian/prefix-8.3
+TGT84  = $(CURDIR)/debian/prefix-8.4
 
 build:
 
 clean:
 	dh_testdir
 	dh_testroot
-	$(MAKE) clean USE_PGXS=1 PGXS="$(PGXS83)"
-	$(MAKE) clean USE_PGXS=1 PGXS="$(PGXS84)"
+	$(MAKE) clean PG_CONFIG="$(PG_CFG83)"
+	$(MAKE) clean PG_CONFIG="$(PG_CFG84)"
+	rm -rf $(TGT83) $(TGT84)
 	dh_clean 
 
 install: build
@@ -29,10 +34,12 @@ install: build
 	dh_clean -k 
 	dh_installdirs
 
-	$(MAKE) CFLAGS="$(CFLAGS)" USE_PGXS=1 PGXS="$(PGXS83)"
+	mkdir -p $(TGT83) $(TGT84)
+
+	cd $(TGT83) && $(MAKE) -f $(SRCDIR)/Makefile CFLAGS="$(CFLAGS)" PG_CONFIG="$(PG_CFG83)" VPATH="$(SRCDIR)"
 	dh_install -ppostgresql-8.3-prefix
 
-	$(MAKE) CFLAGS="$(CFLAGS)" USE_PGXS=1 PGXS="$(PGXS84)"
+	cd $(TGT84) && $(MAKE) -f $(SRCDIR)/Makefile CFLAGS="$(CFLAGS)" PG_CONFIG="$(PG_CFG84)" VPATH="$(SRCDIR)"
 	dh_install -ppostgresql-8.4-prefix
 
 binary-indep: build install

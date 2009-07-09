@@ -1,2 +1,2 @@
-prefix.so usr/lib/postgresql/8.3/lib
-prefix.sql usr/share/postgresql/8.3/contrib
+debian/prefix-8.3/prefix.so usr/lib/postgresql/8.3/lib
+debian/prefix-8.3/prefix.sql usr/share/postgresql/8.3/contrib

@@ -312,7 +312,7 @@ LANGUAGE 'C' IMMUTABLE STRICT;
 
 
 CREATE OPERATOR CLASS gist_prefix_range_ops
-FOR TYPE prefix_range USING gist 
+DEFAULT FOR TYPE prefix_range USING gist 
 AS
 	OPERATOR	1	@>,
 	OPERATOR	2	<@,

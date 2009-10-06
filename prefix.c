@@ -9,7 +9,7 @@
  * writting of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
  *
- * $Id: prefix.c,v 1.53 2009/07/09 11:11:56 dim Exp $
+ * $Id: prefix.c,v 1.54 2009/10/06 09:55:32 dim Exp $
  */
 
 #include <stdio.h>
@@ -23,11 +23,11 @@
 #include "libpq/pqformat.h"
 #include <math.h>
 
-#define  DEBUG
 /**
  * We use those DEBUG defines in the code, uncomment them to get very
  * verbose output.
  *
+#define  DEBUG
 #define  DEBUG_UNION
 #define  DEBUG_PENALTY
 #define  DEBUG_PICKSPLIT
@@ -1096,20 +1096,20 @@ float __pr_penalty(prefix_range *orig, prefix_range *new)
   int  nlen, olen, gplen, dist = 0;
   char tmp;
 
+#ifdef DEBUG_PENALTY
   if( orig->prefix[0] != 0 ) {
     /**
      * The prefix main test case deals with phone number data, hence
      * containing only numbers...
      */
     if( orig->prefix[0] < '0' || orig->prefix[0] > '9' )
-#ifdef DEBUG
       elog(NOTICE, "__pr_penalty(%s, %s) orig->first=%d orig->last=%d ", 
 	   DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(orig))),
 	   DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(new))),
 	   orig->first, orig->last);
-#endif
     Assert(orig->prefix[0] >= '0' && orig->prefix[0] <= '9');
   }
+#endif
 
   olen  = strlen(orig->prefix);
   nlen  = strlen(new->prefix);

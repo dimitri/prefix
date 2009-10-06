@@ -1,5 +1,5 @@
 PKGNAME = prefix
-PKGVERS = 1.0~rc2
+PKGVERS = 1.0.0
 
 DEBDIR = /tmp/$(PKGNAME)
 EXPORT = $(DEBDIR)/export/$(PKGNAME)-$(PKGVERS)

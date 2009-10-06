@@ -52,7 +52,7 @@ It's as easy as:
   
   \copy prefixes from 'prefixes.fr.csv' with delimiter ; csv quote '"'
 
-  create index idx_prefix on prefixes using gist(prefix gist_prefix_range_ops);
+  create index idx_prefix on prefixes using gist(prefix);
  
 === Simple tests:
 

@@ -1,3 +1,9 @@
+prefix (1.1.0-1) unstable; urgency=high
+
+  * Fix Btree opclass for supporting sub-ranges
+
+ -- Dimitri Fontaine <dim@tapoueh.org>  Mon, 30 Nov 2009 10:02:40 +0100
+
 prefix (1.0.0-1) unstable; urgency=low
 
   * Release 1.0.0

@@ -520,7 +520,11 @@ int pr_cmp(prefix_range *a, prefix_range *b) {
   cmp = memcmp(p, q, mlen);
   
   if( cmp == 0 )
-    return (a->first == b->first) ? (a->last - b->last) : (a->first - b->first);
+    /*
+     * we are comparing e.g. '1' and '12' (the shorter contains the
+     * smaller), so let's pretend '12' < '1' as it contains less elements.
+     */
+    return (alen == mlen) ? 1 : -1;
 
   return cmp;
 }

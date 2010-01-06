@@ -46,7 +46,7 @@ deb:
 	rm -rf $(DEBDIR)/$(PKGNAME)-$(PKGVERS)/debian
 	(cd $(DEBDIR) && tar czf $(ORIG) $(PKGNAME)-$(PKGVERS))
 
-	# have a copy of the $ORIG file named $ARCHIVE for non-debian packagers
+	# have a copy of the $$ORIG file named $$ARCHIVE for non-debian packagers
 	cp $(ORIG) $(ARCHIVE)
 
 	# build the debian package and copy them to ..

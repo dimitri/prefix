@@ -2,7 +2,7 @@ Source: prefix
 Section: database
 Priority: extra
 Maintainer: Dimitri Fontaine <dim@tapoueh.org>
-Build-Depends: debhelper (>= 5.0.0), postgresql-server-dev-8.3, postgresql-server-dev-8.4
+Build-Depends: debhelper (>= 7), postgresql-dev-common, postgresql-server-dev-8.3, postgresql-server-dev-8.4
 Standards-Version: 3.8.3
 
 Package: postgresql-8.3-prefix

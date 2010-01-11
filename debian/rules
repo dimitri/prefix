@@ -1,5 +1,7 @@
 #!/usr/bin/make -f
 
+include /usr/share/postgresql-common/pgxs_debian_control.mk
+
 ifneq (,$(findstring noopt,$(DEB_BUILD_OPTIONS)))
 	CFLAGS += -O0
 else
@@ -9,13 +11,12 @@ endif
 SRCDIR = $(CURDIR)
 TARGET = $(CURDIR)/debian/prefix-%v
 
-build:
+build: debian/control
 
 clean:
 	dh_testdir
 	dh_testroot
-	pg_buildext clean $(SRCDIR) $(TARGET) 8.3 "$(CFLAGS)"
-	pg_buildext clean $(SRCDIR) $(TARGET) 8.4 "$(CFLAGS)"
+	pg_buildext clean $(SRCDIR) $(TARGET) "$(CFLAGS)"
 	dh_clean 
 
 install: build
@@ -24,11 +25,13 @@ install: build
 	dh_prep 
 	dh_installdirs
 
-	pg_buildext build $(SRCDIR) $(TARGET) 8.3 "$(CFLAGS)" && \
-	dh_install -ppostgresql-8.3-prefix || echo "skipping 8.3"
+	# build all supported version
+	pg_buildext build $(SRCDIR) $(TARGET) "$(CFLAGS)"
 
-	pg_buildext build $(SRCDIR) $(TARGET) 8.4 "$(CFLAGS)" && \
-	dh_install -ppostgresql-8.4-prefix || echo "skipping 8.4"
+	# then install each of them
+	for v in `pg_buildext supported-versions $(SRCDIR)`; do \
+		dh_install -ppostgresql-$$v-prefix ;\
+	done
 
 binary-indep: build install
 binary-arch: build install

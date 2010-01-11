@@ -1,3 +1,9 @@
+prefix (1.1.0-2) unstable; urgency=low
+
+  * Support pgversions and pgxs_debian_control (Closes: #559610)
+
+ -- Dimitri Fontaine <dim@tapoueh.org>  Mon, 11 Jan 2010 12:28:34 +0100
+
 prefix (1.1.0-1) unstable; urgency=high
 
   * Fix Btree opclass for supporting sub-ranges

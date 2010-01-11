@@ -50,8 +50,9 @@ deb:
 	cp $(ORIG) $(ARCHIVE)
 
 	# build the debian package and copy them to ..
-	(cd $(EXPORT) && debuild)
+	(cd $(EXPORT) && touch debian/control.in && debuild)
 
+	cp $(EXPORT)/debian/control debian
 	cp -a $(DEBDIR)/export/*.deb ..
 	cp -a $(DEBDIR)/export/$(PKGNAME)[_-]$(PKGVERS)*.$(DEBEXTS) ..
 	cp -a $(ARCHIVE) ..

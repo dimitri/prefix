@@ -1,3 +1,10 @@
+prefix (1.1.1-1) unstable; urgency=low
+
+  * Test against 9.0 (git HEAD)
+  * Fix README to ORDER BY length DESC
+
+ -- Dimitri Fontaine <dim@tapoueh.org>  Fri, 12 Mar 2010 11:19:42 +0100
+
 prefix (1.1.0-2) unstable; urgency=low
 
   * Support pgversions and pgxs_debian_control (Closes: #559610)

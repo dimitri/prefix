@@ -56,7 +56,8 @@
 #endif
 
 #if    PG_MAJOR_VERSION != 801 && PG_MAJOR_VERSION != 802     \
-    && PG_MAJOR_VERSION != 803 && PG_MAJOR_VERSION != 804
+    && PG_MAJOR_VERSION != 803 && PG_MAJOR_VERSION != 804     \
+    && PG_MAJOR_VERSION != 900
 #error "Unknown or unsupported postgresql version"
 #endif
 

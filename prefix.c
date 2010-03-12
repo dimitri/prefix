@@ -29,6 +29,7 @@
  *
 #define  DEBUG
 #define  DEBUG_UNION
+#define  DEBUG_INTER
 #define  DEBUG_PENALTY
 #define  DEBUG_PICKSPLIT
 #define  DEBUG_CONSISTENT
@@ -657,6 +658,11 @@ prefix_range *pr_union(prefix_range *a, prefix_range *b) {
       }
       res->first = min;
       res->last  = max;
+#ifdef DEBUG_UNION
+    elog(NOTICE, "union a: %s %d %d", a->prefix, a->first, a->last);
+    elog(NOTICE, "union b: %s %d %d", b->prefix, b->first, b->last);
+    elog(NOTICE, "union r: %s %d %d", res->prefix, res->first, res->last);
+#endif
     }
   }
   return pr_normalize(res);
@@ -701,7 +707,13 @@ prefix_range *pr_inter(prefix_range *a, prefix_range *b) {
   else if( gplen == alen && alen == blen ) {
     res = build_pr(gp,
 		   a->first > b->first ? a->first : b->first,
-		   a->last  < b->last  ? a->last  : b->last);
+		   a->last  > b->last  ? a->last  : b->last);
+
+#ifdef DEBUG_INTER
+    elog(NOTICE, "inter a: %s %d %d", a->prefix, a->first, a->last);
+    elog(NOTICE, "inter b: %s %d %d", b->prefix, b->first, b->last);
+    elog(NOTICE, "inter r: %s %d %d", res->prefix, res->first, res->last);
+#endif
   }
   else if( gplen == alen ) {
     Assert(gplen < blen);

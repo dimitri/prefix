@@ -2,6 +2,7 @@ prefix (1.1.1-1) unstable; urgency=low
 
   * Test against 9.0 (git HEAD)
   * Fix README to ORDER BY length DESC
+  * Fix a bug in intersect code, so that 123 & 123[4-5] is 123[4-5]
 
  -- Dimitri Fontaine <dim@tapoueh.org>  Fri, 12 Mar 2010 11:19:42 +0100
 

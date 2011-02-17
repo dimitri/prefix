@@ -212,7 +212,7 @@ prefix_range *pr_normalize(prefix_range *a) {
     prefix[s-1] = 0;
 
 #ifdef DEBUG_PR_NORMALIZE
-    elog(NOTICE, "prefix_range %s %s %s", str, pr->prefix, prefix);
+    elog(NOTICE, "prefix_range %s %s %s", a->prefix, pr->prefix, prefix);
 #endif
 
     pfree(pr);    

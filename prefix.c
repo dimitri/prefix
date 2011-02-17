@@ -1025,7 +1025,11 @@ bool pr_consistent(StrategyNumber strategy,
       return pr_contains(key, query, true);
 
     case 2:
-      return pr_contains(query, key, true);
+      if ( is_leaf ) {
+        return pr_contains(query, key, true);
+      } else {
+	return pr_overlaps(query, key);
+      }
 
     case 3:
       if( is_leaf ) {

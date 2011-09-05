@@ -1,6 +1,7 @@
 prefix (1.1.1-1) unstable; urgency=low
 
-  * Test against 9.0 (git HEAD)
+  * Test against 9.0 and 9.1
+  * Package now supports 8.3 8.4 9.0 and 9.1 out of the box (Closes: #639479)
   * Fix README to ORDER BY length DESC
   * Fix a bug in intersect code, so that 123 & 123[4-5] is 123[4-5]
 

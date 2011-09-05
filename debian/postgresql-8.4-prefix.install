@@ -1,2 +1,2 @@
 debian/prefix-8.4/prefix.so usr/lib/postgresql/8.4/lib
-debian/prefix-8.4/prefix.sql usr/share/postgresql/8.4/contrib
+prefix.sql usr/share/postgresql/8.4/contrib

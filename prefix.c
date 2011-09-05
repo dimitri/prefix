@@ -53,12 +53,12 @@
 #ifdef PG_VERSION_NUM
 #define PG_MAJOR_VERSION (PG_VERSION_NUM / 100)
 #else
-#define PG_MAJOR_VERSION PREFIX_PGVER 
+#define PG_MAJOR_VERSION PREFIX_PGVER
 #endif
 
 #if    PG_MAJOR_VERSION != 801 && PG_MAJOR_VERSION != 802     \
     && PG_MAJOR_VERSION != 803 && PG_MAJOR_VERSION != 804     \
-    && PG_MAJOR_VERSION != 900
+    && PG_MAJOR_VERSION != 900 && PG_MAJOR_VERSION != 901
 #error "Unknown or unsupported postgresql version"
 #endif
 

@@ -1,0 +1,5 @@
+# prefix extension
+comment = 'Prefix Range module for PostgreSQL'
+default_version = '1.1'
+module_pathname = '$libdir/prefix'
+relocatable = true

@@ -1,5 +1,6 @@
 PKGNAME = prefix
-PKGVERS = 1.1.0
+PKGVERS = $(shell dpkg-parsechangelog | awk -F '[:-]' '/^Version:/ { print substr($$2, 2) }')
+EXTVERS = $(shell awk -F "[= ']" '/default_version/ {print $$5}' prefix.control)
 
 DEBDIR = /tmp/$(PKGNAME)
 EXPORT = $(DEBDIR)/export/$(PKGNAME)-$(PKGVERS)
@@ -8,7 +9,7 @@ ARCHIVE= $(DEBDIR)/export/$(PKGNAME)-$(PKGVERS).tar.gz
 DEBEXTS= {gz,changes,build,dsc}
 
 MODULES = prefix
-DATA_built = prefix.sql
+DATA = prefix.sql
 DOCS = $(wildcard *.txt)
 
 # support for 8.1 which didn't expose PG_VERSION_NUM -- another trick from ip4r
@@ -37,7 +38,7 @@ deb:
 	rsync -Ca . $(EXPORT)
 
 	# get rid of temp and build files
-	for n in ".#*" "*~" "build-stamp" "configure-stamp" "prefix.sql" "prefix.so"; do \
+	for n in ".#*" "*~" "build-stamp" "configure-stamp" "prefix.so"; do \
 	  find $(EXPORT) -name "$$n" -print0|xargs -0 rm -f; \
 	done
 
@@ -54,6 +55,6 @@ deb:
 
 	cp $(EXPORT)/debian/control debian
 	cp -a $(DEBDIR)/export/*.deb ..
-	cp -a $(DEBDIR)/export/$(PKGNAME)[_-]$(PKGVERS)*.$(DEBEXTS) ..
+	find $(DEBDIR)/export -name "*.$(DEBEXTS)" -print0| xargs -0 -I% cp -a % ..
 	cp -a $(ARCHIVE) ..
 	cp -a $(ORIG) ..

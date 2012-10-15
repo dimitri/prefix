@@ -1,6 +1,7 @@
 ---
 --- prefix_range datatype installation
 ---
+
 CREATE OR REPLACE FUNCTION prefix_range_in(cstring)
 RETURNS prefix_range
 AS '$libdir/prefix'
@@ -227,7 +228,9 @@ CREATE OPERATOR <@ (
 	LEFTARG = prefix_range,
 	RIGHTARG = prefix_range,
 	PROCEDURE = prefix_range_contained_by,
-	COMMUTATOR = '@>'
+	COMMUTATOR = '@>',
+	RESTRICT   = contsel,
+	JOIN       = contjoinsel
 );
 COMMENT ON OPERATOR <@(prefix_range, prefix_range) IS 'contained by?';
 

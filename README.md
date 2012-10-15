@@ -21,6 +21,14 @@ will try to match a phone number to the longest prefix in the table:
 
 ## Installation
 
+### debian and ubuntu packages
+
+    apt-get install postgresql-9.2-prefix
+	psql ...
+	=# create extension prefix;
+
+### from sources
+
 Check `$PATH`, then
 
     make
@@ -28,10 +36,18 @@ Check `$PATH`, then
     psql <connection string> -c 'CREATE EXTENSION prefix;'
 
 The `make install` step might have to be done as `root`, and the psql one
-has to be done as a PostgreSQL *superuser*. If you're running a very old
-PostgreSQL version such as `8.3`, `8.4` of `9.0` you can still install this
-extension by manually running the `prefix.sql` file from your `psql`
-console (either using `-f` or `\i`).
+has to be done as a PostgreSQL *superuser*.
+
+### before 9.1 (consider an upgrade)
+
+If you're running a very old PostgreSQL version such as `8.3`, `8.4` of
+`9.0` you can still install this extension manually:
+
+    psql ...
+	=# \i /usr/share/postgresql/X.Y/extension/prefix--1.2.0.sql
+
+You still have to edit this example to replace X.Y with your local
+PostgreSQL version number, such as `8.4`.
 
 ## Uninstall
 

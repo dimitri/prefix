@@ -1,3 +1,11 @@
+prefix (1.2.0-1) unstable; urgency=low
+
+  * Fix GiST consisten function in non-leaf nodes (Closes: #690160)
+  * Refactors as a real PostgreSQL Extension
+  * Add explicit compatibility with PostgreSQL 9.2 and 9.3devel
+
+ -- Dimitri Fontaine <dim@tapoueh.org>  Mon, 15 Oct 2012 11:52:44 +0200
+
 prefix (1.1.1-1) unstable; urgency=low
 
   * Test against 9.0 and 9.1

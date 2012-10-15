@@ -4,22 +4,22 @@
 CREATE OR REPLACE FUNCTION prefix_range_in(cstring)
 RETURNS prefix_range
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range_out(prefix_range)
 RETURNS cstring
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range_recv(internal)
 RETURNS prefix_range
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range_send(prefix_range)
 RETURNS bytea
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE TYPE prefix_range (
 	INPUT   = prefix_range_in,
@@ -32,17 +32,17 @@ COMMENT ON TYPE prefix_range IS 'prefix range: (prefix)?([a-b])?';
 CREATE OR REPLACE FUNCTION prefix_range(text, text, text)
 RETURNS prefix_range
 AS '$libdir/prefix', 'prefix_range_init'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range(text)
 RETURNS prefix_range
 AS '$libdir/prefix', 'prefix_range_cast_from_text'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION text(prefix_range)
 RETURNS text
 AS '$libdir/prefix', 'prefix_range_cast_to_text'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE CAST (text as prefix_range) WITH FUNCTION prefix_range(text) AS IMPLICIT;
 CREATE CAST (prefix_range as text) WITH FUNCTION text(prefix_range);
@@ -51,77 +51,77 @@ CREATE CAST (prefix_range as text) WITH FUNCTION text(prefix_range);
 CREATE OR REPLACE FUNCTION prefix_range_eq(prefix_range, prefix_range)
 RETURNS bool
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range_neq(prefix_range, prefix_range)
 RETURNS bool
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range_lt(prefix_range, prefix_range)
 RETURNS bool
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range_le(prefix_range, prefix_range)
 RETURNS bool
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range_gt(prefix_range, prefix_range)
 RETURNS bool
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range_ge(prefix_range, prefix_range)
 RETURNS bool
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range_cmp(prefix_range, prefix_range)
 RETURNS integer
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range_overlaps(prefix_range, prefix_range)
 RETURNS bool
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range_contains(prefix_range, prefix_range)
 RETURNS bool
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range_contains_strict(prefix_range, prefix_range)
 RETURNS bool
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range_contained_by(prefix_range, prefix_range)
 RETURNS bool
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range_contained_by_strict(prefix_range, prefix_range)
 RETURNS bool
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range_union(prefix_range, prefix_range)
 RETURNS prefix_range
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION prefix_range_inter(prefix_range, prefix_range)
 RETURNS prefix_range
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION length(prefix_range)
 RETURNS int
 AS '$libdir/prefix', 'prefix_range_length'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OPERATOR = (
 	LEFTARG = prefix_range,
@@ -250,57 +250,57 @@ AS
 CREATE OR REPLACE FUNCTION gpr_consistent(internal, prefix_range, smallint, oid)
 RETURNS bool
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_consistent(internal, prefix_range, smallint, oid, internal)
 RETURNS bool
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_compress(internal)
 RETURNS internal 
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_decompress(internal)
 RETURNS internal 
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_penalty(internal, internal, internal)
 RETURNS internal
 AS '$libdir/prefix'
-LANGUAGE 'C' STRICT;
+LANGUAGE C STRICT;
 
 CREATE OR REPLACE FUNCTION pr_penalty(prefix_range, prefix_range)
 RETURNS float4
 AS '$libdir/prefix'
-LANGUAGE 'C' STRICT;
+LANGUAGE C STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_picksplit(internal, internal)
 RETURNS internal
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_picksplit_presort(internal, internal)
 RETURNS internal
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_picksplit_jordan(internal, internal)
 RETURNS internal
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_union(internal, internal)
 RETURNS text
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 CREATE OR REPLACE FUNCTION gpr_same(prefix_range, prefix_range, internal)
 RETURNS internal 
 AS '$libdir/prefix'
-LANGUAGE 'C' IMMUTABLE STRICT;
+LANGUAGE C IMMUTABLE STRICT;
 
 
 CREATE OPERATOR CLASS gist_prefix_range_ops

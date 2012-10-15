@@ -25,10 +25,13 @@ Check `$PATH`, then
 
     make
     make install
-    psql <connection string> -f prefix.sql <database>
+    psql <connection string> -c 'CREATE EXTENSION prefix;'
 
-The `make install` step might have to be done as `root`, and the
-psql one has to be done as a PostgreSQL *superuser*.
+The `make install` step might have to be done as `root`, and the psql one
+has to be done as a PostgreSQL *superuser*. If you're running a very old
+PostgreSQL version such as `8.3`, `8.4` of `9.0` you can still install this
+extension by manually running the `prefix.sql` file from your `psql`
+console (either using `-f` or `\i`).
 
 ## Uninstall
 

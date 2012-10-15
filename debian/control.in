@@ -4,6 +4,8 @@ Priority: extra
 Maintainer: Dimitri Fontaine <dim@tapoueh.org>
 Build-Depends: debhelper (>= 7.0.50~), postgresql-server-dev-all
 Standards-Version: 3.9.3
+Vcs-Browser: https://github.com/dimitri/prefix
+Vcs-Git: git://github.com/dimitri/prefix.git
 
 Package: postgresql-PGVERSION-prefix
 Architecture: any

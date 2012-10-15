@@ -8,8 +8,9 @@ ORIG   = $(DEBDIR)/export/$(PKGNAME)_$(PKGVERS).orig.tar.gz
 ARCHIVE= $(DEBDIR)/export/$(PKGNAME)-$(PKGVERS).tar.gz
 DEBEXTS= {gz,changes,build,dsc}
 
+EXTENSION = prefix
 MODULES = prefix
-DATA = prefix.sql
+DATA = prefix--1.2.0.sql
 DOCS = $(wildcard *.txt)
 
 # support for 8.1 which didn't expose PG_VERSION_NUM -- another trick from ip4r

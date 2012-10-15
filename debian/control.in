@@ -3,7 +3,7 @@ Section: database
 Priority: extra
 Maintainer: Dimitri Fontaine <dim@tapoueh.org>
 Build-Depends: debhelper (>= 7.0.50~), postgresql-server-dev-all
-Standards-Version: 3.9.2
+Standards-Version: 3.9.3
 
 Package: postgresql-PGVERSION-prefix
 Architecture: any

@@ -153,7 +153,7 @@ char *__greater_prefix(char *a, char *b, int alen, int blen)
   char *result = NULL;
 
   for(i=0; i<alen && i<blen && a[i] == b[i]; i++);
-  
+
   /* i is the last common char position in a, or 0 */
   if( i == 0 ) {
     /**
@@ -166,13 +166,13 @@ char *__greater_prefix(char *a, char *b, int alen, int blen)
     memcpy(result, a, i);
   }
   result[i] = 0;
-    
+
   return result;
 }
 
 /**
  * Helper function which builds a prefix_range from a prefix, a first
- * and a last component, making a copy of the prefix string. 
+ * and a last component, making a copy of the prefix string.
  */
 static inline
 prefix_range *build_pr(const char *prefix, char first, char last) {
@@ -184,7 +184,7 @@ prefix_range *build_pr(const char *prefix, char first, char last) {
 
 #ifdef DEBUG_PR_IN
   elog(NOTICE,
-       "build_pr: pr->prefix = '%s', pr->first = %d, pr->last = %d", 
+       "build_pr: pr->prefix = '%s', pr->first = %d, pr->last = %d",
        pr->prefix, pr->first, pr->last);
 #endif
 
@@ -215,7 +215,7 @@ prefix_range *pr_normalize(prefix_range *a) {
     elog(NOTICE, "prefix_range %s %s %s", a->prefix, pr->prefix, prefix);
 #endif
 
-    pfree(pr);    
+    pfree(pr);
     pr = build_pr(prefix, 0, 0);
   }
   else if( pr->first > pr->last ) {
@@ -250,7 +250,7 @@ prefix_range *make_prefix_range(char *str, char first, char last) {
 
 /**
  * First, the input reader. A prefix range will have to respect the
- * following regular expression: .*([[].-.[]])? 
+ * following regular expression: .*([[].-.[]])?
  *
  * examples : 123[4-6], [1-3], 234, 01[] --- last one not covered by
  * regexp.
@@ -276,7 +276,7 @@ prefix_range *pr_from_str(char *str) {
       *prefix_ptr++ = current;
 
 #ifdef DEBUG_PR_IN
-    elog(NOTICE, "prefix_range previous='%c' current='%c' prefix='%s'", 
+    elog(NOTICE, "prefix_range previous='%c' current='%c' prefix='%s'",
 	 (previous?previous:' '), current, prefix);
 #endif
 
@@ -310,7 +310,7 @@ prefix_range *pr_from_str(char *str) {
 #ifdef DEBUG_PR_IN
 	  elog(ERROR,
 	       "prefix_range %s has separator following range opening, without data", str);
-#endif	  
+#endif
 	  return NULL;
 	}
 
@@ -340,7 +340,7 @@ prefix_range *pr_from_str(char *str) {
 	if( previous == PR_SEP ) {
 #ifdef DEBUG_PR_IN
 	  elog(ERROR,
-	       "prefix_range %s has a closed range without last bound", str);	  
+	       "prefix_range %s has a closed range without last bound", str);
 #endif
 	  return NULL;
 	}
@@ -364,7 +364,7 @@ prefix_range *pr_from_str(char *str) {
 	     "prefix_range %s contains trailing characters", str);
 #endif
 	return NULL;
-      } 
+      }
       break;
     }
   }
@@ -386,11 +386,11 @@ prefix_range *pr_from_str(char *str) {
   if( pr != NULL ) {
     if( pr->first && pr->last )
       elog(NOTICE,
-	   "prefix_range %s: prefix = '%s', first = '%c', last = '%c'", 
+	   "prefix_range %s: prefix = '%s', first = '%c', last = '%c'",
 	   str, pr->prefix, pr->first, pr->last);
     else
       elog(NOTICE,
-	   "prefix_range %s: prefix = '%s', no first nor last", 
+	   "prefix_range %s: prefix = '%s', no first nor last",
 	   str, pr->prefix);
   }
 #endif
@@ -402,7 +402,7 @@ static inline
 struct varlena *make_varlena(prefix_range *pr) {
   struct varlena *vdat;
   int size;
-  
+
   if (pr != NULL) {
     size = sizeof(prefix_range) + ((strlen(pr->prefix)+1)*sizeof(char)) + VARHDRSZ;
     vdat = palloc(size);
@@ -436,7 +436,7 @@ struct varlena *make_varlena(prefix_range *pr) {
 static inline
 int pr_length(prefix_range *pr) {
   int len = strlen(pr->prefix);
-  
+
   if( pr->first != 0 )
     len += 1;
 
@@ -453,7 +453,7 @@ bool pr_eq(prefix_range *a, prefix_range *b) {
 
   return sa == sb
     && memcmp(a->prefix, b->prefix, sa) == 0
-    && a->first == b->first 
+    && a->first == b->first
     && a->last  == b->last;
 }
 
@@ -488,7 +488,7 @@ int pr_cmp(prefix_range *a, prefix_range *b) {
     cmp = memcmp(p, q, alen);
 
     /* Uncommon prefix, easy to compare */
-    if( cmp != 0 ) 
+    if( cmp != 0 )
       return cmp;
 
     /* Common prefix, check for (sub)ranges */
@@ -520,7 +520,7 @@ int pr_cmp(prefix_range *a, prefix_range *b) {
    * '93'.
    */
   cmp = memcmp(p, q, mlen);
-  
+
   if( cmp == 0 )
     /*
      * we are comparing e.g. '1' and '12' (the shorter contains the
@@ -596,7 +596,7 @@ bool pr_contains_prefix(prefix_range *pr, text *query, bool eqval) {
   return false;
 }
 
-static 
+static
 prefix_range *pr_union(prefix_range *a, prefix_range *b) {
   prefix_range *res = NULL;
   int alen = strlen(a->prefix);
@@ -691,14 +691,14 @@ prefix_range *pr_inter(prefix_range *a, prefix_range *b) {
   }
 
   if( gplen == alen && 0 == alen ) {
-    if( a->first <= b->prefix[0] && b->prefix[0] <= a->last ) {      
+    if( a->first <= b->prefix[0] && b->prefix[0] <= a->last ) {
       res = build_pr(b->prefix, b->first, b->last);
     }
     else
       res = build_pr("", 0, 0);
   }
   else if( gplen == blen && 0 == blen ) {
-    if( b->first <= a->prefix[0] && a->prefix[0] <= b->last ) {      
+    if( b->first <= a->prefix[0] && a->prefix[0] <= b->last ) {
       res = build_pr(a->prefix, a->first, a->last);
     }
     else
@@ -743,22 +743,22 @@ Datum
 prefix_range_init(PG_FUNCTION_ARGS)
 {
   text *txt  = PG_GETARG_TEXT_P(0);
-  char *str  = 
+  char *str  =
     DatumGetCString(DirectFunctionCall1(textout, PointerGetDatum(txt)));
 
   text *t_first = PG_GETARG_TEXT_P(1);
-  char *c_first = 
+  char *c_first =
     DatumGetCString(DirectFunctionCall1(textout, PointerGetDatum(t_first)));
 
   text *t_last  = PG_GETARG_TEXT_P(2);
-  char *c_last = 
+  char *c_last =
     DatumGetCString(DirectFunctionCall1(textout, PointerGetDatum(t_last)));
 
   int flen = t_first == NULL ? 0 : strlen(c_first);
   int llen = t_last  == NULL ? 0 : strlen(c_last);
 
   char first, last;
-  
+
   if( flen > 1 || llen > 1 )
     ereport(ERROR,
 	    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
@@ -873,7 +873,7 @@ PG_FUNCTION_INFO_V1(prefix_range_eq);
 Datum
 prefix_range_eq(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL( pr_eq(PG_GETARG_PREFIX_RANGE_P(0), 
+  PG_RETURN_BOOL( pr_eq(PG_GETARG_PREFIX_RANGE_P(0),
 			PG_GETARG_PREFIX_RANGE_P(1)) );
 }
 
@@ -881,7 +881,7 @@ PG_FUNCTION_INFO_V1(prefix_range_neq);
 Datum
 prefix_range_neq(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL( ! pr_eq(PG_GETARG_PREFIX_RANGE_P(0), 
+  PG_RETURN_BOOL( ! pr_eq(PG_GETARG_PREFIX_RANGE_P(0),
 			  PG_GETARG_PREFIX_RANGE_P(1)) );
 }
 
@@ -935,7 +935,7 @@ PG_FUNCTION_INFO_V1(prefix_range_overlaps);
 Datum
 prefix_range_overlaps(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL( pr_overlaps(PG_GETARG_PREFIX_RANGE_P(0), 
+  PG_RETURN_BOOL( pr_overlaps(PG_GETARG_PREFIX_RANGE_P(0),
 			      PG_GETARG_PREFIX_RANGE_P(1)) );
 }
 
@@ -943,7 +943,7 @@ PG_FUNCTION_INFO_V1(prefix_range_contains);
 Datum
 prefix_range_contains(PG_FUNCTION_ARGS)
 {
-  PG_RETURN_BOOL( pr_contains(PG_GETARG_PREFIX_RANGE_P(0), 
+  PG_RETURN_BOOL( pr_contains(PG_GETARG_PREFIX_RANGE_P(0),
 			      PG_GETARG_PREFIX_RANGE_P(1),
 			      TRUE ));
 }
@@ -1016,7 +1016,7 @@ Datum pr_penalty(PG_FUNCTION_ARGS);
   OPERATOR	4	&&,
 */
 static inline
-bool pr_consistent(StrategyNumber strategy, 
+bool pr_consistent(StrategyNumber strategy,
 		   prefix_range *key, prefix_range *query, bool is_leaf) {
 
     switch (strategy) {
@@ -1031,7 +1031,7 @@ bool pr_consistent(StrategyNumber strategy,
 
 #ifdef DEBUG_CONSISTENT
 	elog(NOTICE, "gpr_consistent: %s %c= %s",
-	     
+
 	     DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(key))),
 	     pr_eq(key, query) ? '=' : '!',
 	     DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(query))));
@@ -1054,7 +1054,7 @@ bool pr_consistent(StrategyNumber strategy,
 /*
  * The consistent function signature has changed in 8.4 to include RECHECK
  * handling, but the signature declared in the OPERATOR CLASS is not
- * considered at all. 
+ * considered at all.
  *
  * Still the function is called by mean of the fmgr, so we know whether
  * we're called with pre-8.4 conventions or not by checking PG_NARGS().
@@ -1120,7 +1120,7 @@ float __pr_penalty(prefix_range *orig, prefix_range *new)
      * containing only numbers...
      */
     if( orig->prefix[0] < '0' || orig->prefix[0] > '9' )
-      elog(NOTICE, "__pr_penalty(%s, %s) orig->first=%d orig->last=%d ", 
+      elog(NOTICE, "__pr_penalty(%s, %s) orig->first=%d orig->last=%d ",
 	   DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(orig))),
 	   DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(new))),
 	   orig->first, orig->last);
@@ -1190,7 +1190,7 @@ float __pr_penalty(prefix_range *orig, prefix_range *new)
 	if( new->first <= orig->prefix[gplen]
 	    && orig->prefix[gplen] <= new->last ) {
 
-	  dist   = 1 + (int)orig->prefix[gplen] - (int)new->first;	  
+	  dist   = 1 + (int)orig->prefix[gplen] - (int)new->first;
 	  if( (1 + (int)new->last - (int)orig->prefix[gplen]) < dist )
 	    dist = 1 + (int)new->last - (int)orig->prefix[gplen];
 
@@ -1216,7 +1216,7 @@ float __pr_penalty(prefix_range *orig, prefix_range *new)
 	else {
 	  dist += 1;
 	}
-      }	
+      }
     }
     /**
      * penalty('abc[f-l]', 'xyz[g-m]'), nothing common
@@ -1226,7 +1226,7 @@ float __pr_penalty(prefix_range *orig, prefix_range *new)
   penalty = (((float)dist) / powf(256, gplen));
 
 #ifdef DEBUG_PENALTY
-  elog(NOTICE, "__pr_penalty(%s, %s) == %d/(256^%d) == %g", 
+  elog(NOTICE, "__pr_penalty(%s, %s) == %d/(256^%d) == %g",
        DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(orig))),
        DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(new))),
        dist, gplen, penalty);
@@ -1242,7 +1242,7 @@ gpr_penalty(PG_FUNCTION_ARGS)
   GISTENTRY *origentry = (GISTENTRY *) PG_GETARG_POINTER(0);
   GISTENTRY *newentry = (GISTENTRY *) PG_GETARG_POINTER(1);
   float *penalty = (float *) PG_GETARG_POINTER(2);
-  
+
   prefix_range *orig = DatumGetPrefixRange(origentry->key);
   prefix_range *new  = DatumGetPrefixRange(newentry->key);
 
@@ -1319,8 +1319,8 @@ gpr_picksplit_jordan(PG_FUNCTION_ARGS)
     raw_entryvec = (GISTENTRY **) malloc(entryvec->n * sizeof(void *));
     for (i=FirstOffsetNumber; i <= maxoff; i=OffsetNumberNext(i))
       raw_entryvec[i] = &(entryvec->vector[i]);
-    
-    /* Sort the raw entry vector.  
+
+    /* Sort the raw entry vector.
      *
      * It seems that pg_qsort isn't available in 8.1, but this code is
      * experimental so we simply don't presort.
@@ -1329,7 +1329,7 @@ gpr_picksplit_jordan(PG_FUNCTION_ARGS)
     pg_qsort(&raw_entryvec[1], maxoff, sizeof(void *), &gpr_cmp);
 #endif
 
-    /* 
+    /*
      * Find the distance between the middle of the raw entry vector and the
      * lower-index of the first group.
      */
@@ -1343,8 +1343,8 @@ gpr_picksplit_jordan(PG_FUNCTION_ARGS)
 	break;
     }
     lower_dist = cut - i;
-	
-    /* 
+
+    /*
      * Find the distance between the middle of the raw entry vector and the
      * upper-index of the first group.
      */
@@ -1361,7 +1361,7 @@ gpr_picksplit_jordan(PG_FUNCTION_ARGS)
      * Choose the cut based on whichever falls within the cut tolerance and
      * is closer to the midpoint.  Choose one at random it there is a tie.
      *
-     * If neither are within the tolerance, use the midpoint as the default. 
+     * If neither are within the tolerance, use the midpoint as the default.
      */
     if (lower_dist <= cut_tolerance || upper_dist <= cut_tolerance) {
       if (lower_dist < upper_dist)
@@ -1371,7 +1371,7 @@ gpr_picksplit_jordan(PG_FUNCTION_ARGS)
       else
 	cut = (random() % 2) ? (cut - lower_dist) : (cut + upper_dist);
     }
-	
+
     for (i=FirstOffsetNumber; i <= maxoff; i=OffsetNumberNext(i)) {
       int real_index = raw_entryvec[i] - entryvec->vector;
       // datum_alpha = VECGETKEY(entryvec, real_index);
@@ -1511,10 +1511,10 @@ OffsetNumber *pr_presort(GistEntryVector *list)
 #ifdef DEBUG_PRESORT_MAX
   elog(NOTICE, " prefix_presort():   max.prefix=%s max.n=%d",
        DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(max.prefix))),
-       max.n);	  
+       max.n);
 #endif
 	}
-	
+
 	/**
 	 * break from the unions loop, we're done with it for this
 	 * element.
@@ -1536,7 +1536,7 @@ OffsetNumber *pr_presort(GistEntryVector *list)
   debug_count = 0;
   for(u = FirstOffsetNumber; u < unions_it; u = OffsetNumberNext(u)) {
     debug_count += unions[u].n;
-    elog(NOTICE, " prefix_presort():   unions[%s] = %d", 
+    elog(NOTICE, " prefix_presort():   unions[%s] = %d",
 	 DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(unions[u].prefix))),
 	 unions[u].n);
   }
@@ -1604,7 +1604,7 @@ OffsetNumber *pr_presort(GistEntryVector *list)
     cur = DatumGetPrefixRange(ent[i].key);
 
 #ifdef DEBUG_PRESORT_RESULT
-    elog(NOTICE, " prefix_presort():   ent[%4d] = %s <@ %s = %s => result[%4d]", 
+    elog(NOTICE, " prefix_presort():   ent[%4d] = %s <@ %s = %s => result[%4d]",
 	 i,
 	 DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(cur))),
 	 DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(max.prefix))),
@@ -1658,7 +1658,7 @@ Datum pr_picksplit(GistEntryVector *entryvec, GIST_SPLITVEC *v, bool presort) {
     prefix_range *curl, *curr, *tmp_union;
     prefix_range *unionL;
     prefix_range *unionR;
-    
+
     /**
      * Keeping track of penalties to insert into ListL or ListR, for
      * both the leftmost and the rightmost element of the remaining
@@ -1834,7 +1834,7 @@ Datum pr_picksplit(GistEntryVector *entryvec, GIST_SPLITVEC *v, bool presort) {
 	 DatumGetCString(DirectFunctionCall1(prefix_range_out, v->spl_ldatum)),
 	 DatumGetCString(DirectFunctionCall1(prefix_range_out, v->spl_rdatum)));
 #endif
-	
+
     PG_RETURN_POINTER(v);
 }
 
@@ -1877,7 +1877,7 @@ gpr_union(PG_FUNCTION_ARGS)
 
       PG_RETURN_PREFIX_RANGE_P(out);
     }
-  
+
     for (i = 1; i < numranges; i++) {
       old = out;
       tmp = DatumGetPrefixRange(ent[i].key);
@@ -1893,7 +1893,7 @@ gpr_union(PG_FUNCTION_ARGS)
 
     /*
 #ifdef DEBUG_UNION
-    elog(NOTICE, "gpr_union: %s", 
+    elog(NOTICE, "gpr_union: %s",
 	 DatumGetCString(DirectFunctionCall1(prefix_range_out,
 					     PrefixRangeGetDatum(out))));
 #endif

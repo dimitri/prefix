@@ -33,14 +33,14 @@ END
 $$ LANGUAGE plpgsql;
 
 -- Start Tests
-SELECT plan(150);
+SELECT plan(164);
 
 
 -- Ensure (esp. during development) that the old code is really unloaded.
 SELECT hasnt_type('prefix_range');
 CREATE EXTENSION prefix WITH SCHEMA prefix;
 SELECT has_type('prefix_range');
-SELECT is('1.2.0', extversion) FROM pg_catalog.pg_extension WHERE extname = 'prefix';
+SELECT is(extversion, '1.2.1') FROM pg_catalog.pg_extension WHERE extname = 'prefix';
 
 --
 -- Test Operators
@@ -93,6 +93,14 @@ SELECT is(length('12345[]'::prefix_range), 5);
 SELECT is(length('123[4-5]'::prefix_range), 5);
 SELECT is(length('1234'::prefix_range), 4);
 
+-- Test like operator which implicitly casts prefix_range to text
+SELECT diag('basics - like');
+SELECT ok('1234'::prefix_range like '12%');
+SELECT ok('1234'::prefix_range like '%1234%');
+SELECT ok('1234'::prefix_range like '1234');
+SELECT ok('1234'::prefix_range not like '%12');
+SELECT ok('1234'::prefix_range ~~ '12%');
+SELECT ok('1234'::prefix_range !~~ '%12');
 
 -- Check transitive behaviour
 SELECT diag('basics - transitive behaviour');

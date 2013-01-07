@@ -23,7 +23,19 @@ will try to match a phone number to the longest prefix in the table:
 
 ### debian and ubuntu packages
 
+Replace the PostgreSQL major version number here by the one you're running
+(pick either `9.1` or `9.2`):
+
     apt-get install postgresql-9.2-prefix
+	psql ...
+	=# create extension prefix;
+
+### fedora, red hat, centos and scientific linux packages
+
+Replace the PostgreSQL major version number here by the one you're running
+(pick either `91` or `92`):
+
+    yum install prefix92
 	psql ...
 	=# create extension prefix;
 

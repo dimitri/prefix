@@ -2,8 +2,9 @@ Source: prefix
 Section: database
 Priority: extra
 Maintainer: Dimitri Fontaine <dim@tapoueh.org>
-Build-Depends: debhelper (>= 7.0.50~), postgresql-server-dev-all
-Standards-Version: 3.9.3
+Uploaders: Christoph Berg <myon@debian.org>
+Build-Depends: debhelper (>= 7.0.50~), postgresql-server-dev-all (>= 148~)
+Standards-Version: 3.9.5
 Vcs-Browser: https://github.com/dimitri/prefix
 Vcs-Git: git://github.com/dimitri/prefix.git
 

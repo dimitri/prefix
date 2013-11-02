@@ -1,5 +1,6 @@
 prefix (1.2.0-2) UNRELEASED; urgency=low
 
+  * debian/rules: Use "pg_buildext loop".
   * Use "all" in debian/pgversions and B-D on pg-server-dev >= 148.
   * Add myself to Uploaders.
 

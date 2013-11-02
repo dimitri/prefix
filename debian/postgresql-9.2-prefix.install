@@ -1,7 +1,0 @@
-debian/prefix-9.2/prefix.so usr/lib/postgresql/9.2/lib
-prefix.control usr/share/postgresql/9.2/extension
-prefix--1.1.sql usr/share/postgresql/9.2/extension
-prefix--1.2.0.sql usr/share/postgresql/9.2/extension
-prefix--1.1--1.2.0.sql usr/share/postgresql/9.2/extension
-prefix--unpackaged--1.1.sql usr/share/postgresql/9.2/extension
-prefix--unpackaged--1.2.0.sql usr/share/postgresql/9.2/extension

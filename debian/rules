@@ -1,43 +1,27 @@
 #!/usr/bin/make -f
-# -*- makefile -*-
-# Sample debian/rules that uses debhelper.
-#
-# This file was originally written by Joey Hess and Craig Small.
-# As a special exception, when this file is copied by dh-make into a
-# dh-make output file, you may use that output file without restriction.
-# This special exception was added by Craig Small in version 0.37 of dh-make.
-#
-# Modified to make a template file for a multi-binary package with separated
-# build-arch and build-indep targets  by Bill Allombert 2001
 
-# Uncomment this to turn on verbose mode.
-#export DH_VERBOSE=1
-
-# This has to be exported to make some magic below work.
-export DH_OPTIONS
-
-SRCDIR = $(CURDIR)
-TARGET = $(CURDIR)/debian/prefix-%v
 PKGVERS = $(shell dpkg-parsechangelog | awk -F '[:-]' '/^Version:/ { print substr($$2, 2) }')
 EXCLUDE = --exclude-vcs --exclude=debian
 
 include /usr/share/postgresql-common/pgxs_debian_control.mk
+clean: debian/control
 
 .PHONY: debian/control
 
-override_dh_auto_clean: debian/control
-	pg_buildext clean $(SRCDIR) $(TARGET) "$(CFLAGS)"
-	dh_clean
-
 override_dh_auto_build:
-	# build all supported version
-	+pg_buildext build $(SRCDIR) $(TARGET) "$(CFLAGS)"
+	# do nothing
 
-override_dh_auto_install: 
-	# then install each of them
-	for v in `pg_buildext supported-versions $(SRCDIR)`; do \
-		dh_install -ppostgresql-$$v-prefix ;\
-	done
+override_dh_auto_install:
+	# do nothing
+
+override_dh_install:
+	# build all supported versions
+	+/home/cbe/projects/postgresql/common/trunk/pg_buildext loop postgresql-%v-prefix
+	# remove docs that belong elsewhere
+	rm -rf debian/*/usr/share/doc/postgresql-doc-*
+
+override_dh_installdocs:
+	dh_installdocs --all README.md TESTS.md
 
 orig: debian/control clean
 	cd .. && tar czf prefix_$(PKGVERS).orig.tar.gz $(EXCLUDE) prefix

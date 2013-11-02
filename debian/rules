@@ -16,7 +16,7 @@ override_dh_auto_install:
 
 override_dh_install:
 	# build all supported versions
-	+/home/cbe/projects/postgresql/common/trunk/pg_buildext loop postgresql-%v-prefix
+	+pg_buildext loop postgresql-%v-prefix
 	# remove docs that belong elsewhere
 	rm -rf debian/*/usr/share/doc/postgresql-doc-*
 

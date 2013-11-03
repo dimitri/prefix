@@ -2,3 +2,7 @@ prefix.so
 prefix.o
 .deps
 results/
+debian/files
+debian/*.log
+debian/*.substvars
+debian/postgresql-*-prefix/

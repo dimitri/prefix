@@ -12,3 +12,5 @@ create index tst_ix on tst using gist ( pref );
 set enable_seqscan = off;
 
 select count(*) from tst where pref <@ '55';
+
+reset enable_seqscan;

@@ -3,6 +3,7 @@ prefix (1.2.1-1) unstable; urgency=low
   * debian/rules: Use "pg_buildext loop".
   * Use "all" in debian/pgversions and B-D on pg-server-dev >= 148.
   * Use 1.0 source format; upstream and packaging are in the same repo.
+  * Add watch file.
   * Add myself to Uploaders.
 
  -- Christoph Berg <myon@debian.org>  Tue, 26 Feb 2013 20:24:08 +0100

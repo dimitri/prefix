@@ -1,0 +1,2 @@
+version=3
+https://github.com/dimitri/prefix/releases /dimitri/prefix/archive/v(.*).tar.gz

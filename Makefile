@@ -4,7 +4,7 @@ EXTVERS = $(shell awk -F "[= ']" '/default_version/ {print $$5}' prefix.control)
 
 EXTENSION = prefix
 MODULES = prefix
-DATA = prefix--1.2.0.sql prefix--1.1.sql prefix--1.1--1.2.0.sql
+DATA = prefix--1.2.0.sql prefix--unpackaged--1.2.0.sql prefix--1.1--1.2.0.sql
 DOCS = $(wildcard *.md)
 
 # support for 8.1 which didn't expose PG_VERSION_NUM -- another trick from ip4r

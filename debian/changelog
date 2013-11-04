@@ -3,7 +3,6 @@ prefix (1.2.1-1) unstable; urgency=low
   * debian/rules: Use "pg_buildext loop".
   * Use "all" in debian/pgversions and B-D on pg-server-dev >= 148.
   * Add regression tests and run them using autopkgtest.
-  * Use 1.0 source format; upstream and packaging are in the same repo.
   * Add watch file.
   * Add myself to Uploaders.
 

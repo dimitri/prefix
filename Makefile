@@ -6,8 +6,11 @@ EXTENSION = prefix
 MODULES = prefix
 DATA = prefix--1.2.0.sql prefix--unpackaged--1.2.0.sql prefix--1.1--1.2.0.sql
 DOCS = $(wildcard *.md)
-SETUPSQL = $(shell $(PG_CONFIG) --version | grep -qE " 8\.| 9\.0" && echo module || echo extension)
-REGRESS = $(SETUPSQL) prefix falcon queries
+# use extenstion in 9.1+
+SETUPSQL = $(shell $(PG_CONFIG) --version | grep -qE " 8\.| 9\.0" && echo create_module || echo create_extension)
+# "explain (costs off)" needs 9.0+ (and 9.0 needs expected/explain_1.out)
+EXPLAINSQL = $(shell $(PG_CONFIG) --version | grep -qE " 8\." || echo explain)
+REGRESS = $(SETUPSQL) prefix falcon $(EXPLAINSQL) queries
 
 # support for 8.1 which didn't expose PG_VERSION_NUM -- another trick from ip4r
 PREFIX_PGVER = $(shell echo $(VERSION) | awk -F. '{ print $$1*100+$$2 }')

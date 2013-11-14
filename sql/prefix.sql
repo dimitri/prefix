@@ -49,3 +49,13 @@ analyze numbers;
 select count(*) from numbers n join ranges r on r.prefix @> n.number;
 
 reset client_min_messages;
+
+-- Debian Bug 690160 regarding the symetry of <@ and @>
+SELECT count(*) FROM ranges WHERE prefix <@ '01000';
+SELECT count(*) FROM ranges WHERE prefix @> '01000';
+SELECT count(*) FROM ranges WHERE '01000' <@ prefix;
+SELECT count(*) FROM ranges WHERE '01000' @> prefix;
+SELECT count(*) FROM ranges WHERE '010009888' @> prefix;
+SELECT count(*) FROM ranges WHERE '010009888' <@ prefix;
+SELECT count(*) FROM ranges WHERE prefix @> '010009888';
+SELECT count(*) FROM ranges WHERE prefix <@ '010009888';

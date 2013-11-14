@@ -80,3 +80,52 @@ select count(*) from numbers n join ranges r on r.prefix @> n.number;
 (1 row)
 
 reset client_min_messages;
+-- Debian Bug 690160 regarding the symetry of <@ and @>
+SELECT count(*) FROM ranges WHERE prefix <@ '01000';
+ count 
+-------
+     9
+(1 row)
+
+SELECT count(*) FROM ranges WHERE prefix @> '01000';
+ count 
+-------
+     0
+(1 row)
+
+SELECT count(*) FROM ranges WHERE '01000' <@ prefix;
+ count 
+-------
+     0
+(1 row)
+
+SELECT count(*) FROM ranges WHERE '01000' @> prefix;
+ count 
+-------
+     9
+(1 row)
+
+SELECT count(*) FROM ranges WHERE '010009888' @> prefix;
+ count 
+-------
+     0
+(1 row)
+
+SELECT count(*) FROM ranges WHERE '010009888' <@ prefix;
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM ranges WHERE prefix @> '010009888';
+ count 
+-------
+     1
+(1 row)
+
+SELECT count(*) FROM ranges WHERE prefix <@ '010009888';
+ count 
+-------
+     0
+(1 row)
+

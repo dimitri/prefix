@@ -37,13 +37,9 @@ order by 3 asc;
 
 create table numbers(number text primary key);
 
-select setseed(0);
 insert into numbers
-  select '01' || to_char((random()*100)::int, 'FM09')
-              || to_char((random()*100)::int, 'FM09')
-              || to_char((random()*100)::int, 'FM09')
-              || to_char((random()*100)::int, 'FM09')
-   from generate_series(1, 5000);
+  select '01' || substr(regexp_replace(md5(i::text), '[a-f]', '', 'g'), 1, 8)
+   from generate_series(1, 5000) i;
 analyze numbers;
 
 select count(*) from numbers n join ranges r on r.prefix @> n.number;

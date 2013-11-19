@@ -44,8 +44,8 @@
 */
 
 /**
- * This code has only been tested with PostgreSQL 8.2 and 8.3, and a 8.1
- * backport has been requested.
+ * This code has only been developped initially against PostgreSQL 8.2 and 8.3,
+ * and a 8.1 backport has been requested.
  *
  * 8.1 didn't have PG_VERSION_NUM, so we'll avoid ugly Makefiles hack by
  * saying that if we don't have PG_VERSION_NUM, it must be 8.1
@@ -56,15 +56,13 @@
 #define PG_MAJOR_VERSION PREFIX_PGVER
 #endif
 
-#if    PG_MAJOR_VERSION != 801 && PG_MAJOR_VERSION != 802     \
-    && PG_MAJOR_VERSION != 803 && PG_MAJOR_VERSION != 804     \
-    && PG_MAJOR_VERSION != 900 && PG_MAJOR_VERSION != 901     \
-    && PG_MAJOR_VERSION != 902 && PG_MAJOR_VERSION != 903     \
-    && PG_MAJOR_VERSION != 904
-#error "Unknown or unsupported postgresql version"
-#endif
-
-/* PG_MODULE_MAGIC was introduced in 8.2. */
+/*
+ * PG_MODULE_MAGIC was introduced in 8.2.
+ *
+ * This particular module began its life in the 8.1 era, and as supporting
+ * those now ancient versions is not costing much in terms of code maintenance,
+ * we keep the support for 8.1 on.
+ */
 #if PG_MAJOR_VERSION >= 802
 PG_MODULE_MAGIC;
 #endif

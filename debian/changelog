@@ -1,8 +1,10 @@
-prefix (1.2.2-2) UNRELEASED; urgency=medium
+prefix (1.2.3-1) unstable; urgency=medium
 
   * Update expected/explain_1.out (9.0 variant) for the latest changes.
+  * Use pg_buildext installcheck.
+  * Set team as maintainer.
 
- -- Christoph Berg <myon@debian.org>  Sun, 26 Jan 2014 19:13:48 +0100
+ -- Christoph Berg <myon@debian.org>  Sun, 15 Jun 2014 17:35:19 +0200
 
 prefix (1.2.2-1) unstable; urgency=medium
 

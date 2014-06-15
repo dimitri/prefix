@@ -2,7 +2,4 @@
 
 set -e
 
-for v in $(pg_buildext supported-versions); do
-	pg_virtualenv -v $v \
-		make installcheck PG_CONFIG=/usr/lib/postgresql/$v/bin/pg_config
-done
+pg_buildext installcheck

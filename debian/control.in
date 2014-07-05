@@ -3,7 +3,7 @@ Section: database
 Priority: extra
 Maintainer: Debian PostgreSQL Maintainers <pkg-postgresql-public@lists.alioth.debian.org>
 Uploaders: Dimitri Fontaine <dim@tapoueh.org>, Christoph Berg <myon@debian.org>
-Build-Depends: debhelper (>= 7.0.50~), postgresql-server-dev-all (>= 153~)
+Build-Depends: debhelper (>= 7.0.50~), postgresql-server-dev-all (>= 158~)
 Standards-Version: 3.9.5
 Vcs-Browser: https://github.com/dimitri/prefix
 Vcs-Git: git://github.com/dimitri/prefix.git

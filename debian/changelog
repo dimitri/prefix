@@ -1,3 +1,9 @@
+prefix (1.2.3-3) unstable; urgency=medium
+
+  * Upload to unstable for 9.4.
+
+ -- Christoph Berg <myon@debian.org>  Sun, 27 Jul 2014 11:10:10 +0200
+
 prefix (1.2.3-2) experimental; urgency=medium
 
   * B-D on pg-common 158 to build against 9.3 and 9.4.

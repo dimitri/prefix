@@ -231,5 +231,5 @@ and `|` is *union* and `&` is *intersect*.
 
 ## See also
 
-This [TESTS.md](TESTS.html) page is more developper oriented material, but
+This [TESTS.md](TESTS.md) page is more developper oriented material, but
 still of interest.

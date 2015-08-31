@@ -707,7 +707,7 @@ prefix_range *pr_inter(prefix_range *a, prefix_range *b) {
   else if( gplen == alen && alen == blen ) {
     res = build_pr(gp,
 		   a->first > b->first ? a->first : b->first,
-		   a->last  > b->last  ? a->last  : b->last);
+		   a->last  > b->last  ? b->last  : a->last);
 
 #ifdef DEBUG_INTER
     elog(NOTICE, "inter a: %s %d %d", a->prefix, a->first, a->last);

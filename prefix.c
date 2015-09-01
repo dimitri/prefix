@@ -705,9 +705,19 @@ prefix_range *pr_inter(prefix_range *a, prefix_range *b) {
       res = build_pr("", 0, 0);
   }
   else if( gplen == alen && alen == blen ) {
-    res = build_pr(gp,
-		   a->first > b->first ? a->first : b->first,
-		   a->last  > b->last  ? b->last  : a->last);
+	  char first, last;
+
+	  if( a->first == 0 )
+		  first = b->first;
+	  else
+		  first = a->first > b->first ? a->first : b->first;
+
+	  if( a->last == 0 )
+		  last = b->last;
+	  else
+		  last = a->last  > b->last  ? b->last  : a->last;
+
+	  res = build_pr(gp, first, last);
 
 #ifdef DEBUG_INTER
     elog(NOTICE, "inter a: %s %d %d", a->prefix, a->first, a->last);

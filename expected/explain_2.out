@@ -1,0 +1,61 @@
+explain (costs off) select * from ranges where prefix @> '0146640123';
+                         QUERY PLAN                         
+------------------------------------------------------------
+ Bitmap Heap Scan on ranges
+   Recheck Cond: (prefix @> '0146640123'::prefix_range)
+   ->  Bitmap Index Scan on idx_prefix
+         Index Cond: (prefix @> '0146640123'::prefix_range)
+(4 rows)
+
+explain (costs off) select * from ranges where prefix @> '0146640123' order by length(prefix) desc limit 1;
+                               QUERY PLAN                               
+------------------------------------------------------------------------
+ Limit
+   ->  Sort
+         Sort Key: (length(prefix)) DESC
+         ->  Bitmap Heap Scan on ranges
+               Recheck Cond: (prefix @> '0146640123'::prefix_range)
+               ->  Bitmap Index Scan on idx_prefix
+                     Index Cond: (prefix @> '0146640123'::prefix_range)
+(7 rows)
+
+explain (costs off) select * from ranges where prefix @> '0100091234';
+                         QUERY PLAN                         
+------------------------------------------------------------
+ Bitmap Heap Scan on ranges
+   Recheck Cond: (prefix @> '0100091234'::prefix_range)
+   ->  Bitmap Index Scan on idx_prefix
+         Index Cond: (prefix @> '0100091234'::prefix_range)
+(4 rows)
+
+explain (costs off) select * from ranges where prefix @> '0100091234' order by length(prefix) desc limit 1;
+                               QUERY PLAN                               
+------------------------------------------------------------------------
+ Limit
+   ->  Sort
+         Sort Key: (length(prefix)) DESC
+         ->  Bitmap Heap Scan on ranges
+               Recheck Cond: (prefix @> '0100091234'::prefix_range)
+               ->  Bitmap Index Scan on idx_prefix
+                     Index Cond: (prefix @> '0100091234'::prefix_range)
+(7 rows)
+
+explain (costs off) select * from numbers n join ranges r on r.prefix @> n.number;
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Nested Loop
+   ->  Seq Scan on numbers n
+   ->  Index Scan using idx_prefix on ranges r
+         Index Cond: (prefix @> (n.number)::prefix_range)
+(4 rows)
+
+explain (costs off) select count(*) from tst where pref <@ '55';
+                       QUERY PLAN                       
+--------------------------------------------------------
+ Aggregate
+   ->  Bitmap Heap Scan on tst
+         Recheck Cond: (pref <@ '55'::prefix_range)
+         ->  Bitmap Index Scan on tst_ix
+               Index Cond: (pref <@ '55'::prefix_range)
+(5 rows)
+

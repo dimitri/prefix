@@ -437,10 +437,7 @@ static inline
 int pr_length(prefix_range *pr) {
   int len = strlen(pr->prefix);
 
-  if( pr->first != 0 )
-    len += 1;
-
-  if( pr->last != 0 )
+  if( pr->first != 0 || pr->last != 0 )
     len += 1;
 
   return len;

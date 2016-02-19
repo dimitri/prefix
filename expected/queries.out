@@ -94,7 +94,7 @@ select length('12345[]'::prefix_range);
 select length('123[4-5]'::prefix_range);
  length 
 --------
-      5
+      4
 (1 row)
 
 select length('1234'::prefix_range);

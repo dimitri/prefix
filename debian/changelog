@@ -1,3 +1,9 @@
+prefix (1.2.5-1) unstable; urgency=medium
+
+  * New upstream version with 9.6 support.
+
+ -- Christoph Berg <myon@debian.org>  Sat, 24 Sep 2016 13:48:13 +0200
+
 prefix (1.2.4-1) unstable; urgency=medium
 
   * New upstream version with 9.5 support.

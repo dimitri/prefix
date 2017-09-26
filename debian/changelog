@@ -1,3 +1,11 @@
+prefix (1.2.6-1) unstable; urgency=medium
+
+  * New upstream version.
+  * Upload to Debian with PostgreSQL 10 support.
+  * Bump DH compat to 9.
+
+ -- Christoph Berg <myon@debian.org>  Tue, 26 Sep 2017 22:36:02 +0200
+
 prefix (1.2.5-1) unstable; urgency=medium
 
   * New upstream version with 9.6 support.

@@ -43,45 +43,7 @@
 #define  DEBUG_MAKE_VARLENA
 */
 
-/**
- * This code has only been developped initially against PostgreSQL 8.2 and 8.3,
- * and a 8.1 backport has been requested.
- *
- * 8.1 didn't have PG_VERSION_NUM, so we'll avoid ugly Makefiles hack by
- * saying that if we don't have PG_VERSION_NUM, it must be 8.1
- */
-#ifdef PG_VERSION_NUM
-#define PG_MAJOR_VERSION (PG_VERSION_NUM / 100)
-#else
-#define PG_MAJOR_VERSION PREFIX_PGVER
-#endif
-
-/*
- * PG_MODULE_MAGIC was introduced in 8.2.
- *
- * This particular module began its life in the 8.1 era, and as supporting
- * those now ancient versions is not costing much in terms of code maintenance,
- * we keep the support for 8.1 on.
- */
-#if PG_MAJOR_VERSION >= 802
 PG_MODULE_MAGIC;
-#endif
-
-/**
- * Define our own varlena size macro depending on PGVER
- */
-#if PG_VERSION_NUM / 100 <= 802
-#define PREFIX_VARSIZE(x)        (VARSIZE(x) - VARHDRSZ)
-#define PREFIX_VARDATA(x)        (VARDATA(x))
-#define PREFIX_PG_GETARG_TEXT(x) (PG_GETARG_TEXT_P(x))
-#define PREFIX_SET_VARSIZE(p, s) (VARATT_SIZEP(p) = s)
-
-#else
-#define PREFIX_VARSIZE(x)        (VARSIZE_ANY_EXHDR(x))
-#define PREFIX_VARDATA(x)        (VARDATA_ANY(x))
-#define PREFIX_PG_GETARG_TEXT(x) (PG_GETARG_TEXT_PP(x))
-#define PREFIX_SET_VARSIZE(p, s) (SET_VARSIZE(p, s))
-#endif
 
 /**
  * prefix_range datatype, varlena structure
@@ -126,7 +88,7 @@ Datum prefix_range_contained_by_strict(PG_FUNCTION_ARGS);
 Datum prefix_range_union(PG_FUNCTION_ARGS);
 Datum prefix_range_inter(PG_FUNCTION_ARGS);
 
-#define DatumGetPrefixRange(X)	          ((prefix_range *) PREFIX_VARDATA(DatumGetPointer(X)) )
+#define DatumGetPrefixRange(X)	          ((prefix_range *) VARDATA_ANY(DatumGetPointer(X)) )
 #define PrefixRangeGetDatum(X)	          PointerGetDatum(make_varlena(X))
 #define PG_GETARG_PREFIX_RANGE_P(n)	  DatumGetPrefixRange(PG_DETOAST_DATUM(PG_GETARG_DATUM(n)))
 #define PG_RETURN_PREFIX_RANGE_P(x)	  return PrefixRangeGetDatum(x)
@@ -136,7 +98,7 @@ Datum prefix_range_inter(PG_FUNCTION_ARGS);
  *
  * plen is the length of string p, qlen the length of string q, the
  * caller are dealing with either text * or char * and its their
- * responsabolity to use either strlen() or PREFIX_VARSIZE()
+ * responsabolity to use either strlen() or VARSIZE_ANY_EXHDR()
  */
 static inline
 bool __prefix_contains(char *p, char *q, int plen, int qlen) {
@@ -406,13 +368,13 @@ struct varlena *make_varlena(prefix_range *pr) {
   if (pr != NULL) {
     size = sizeof(prefix_range) + ((strlen(pr->prefix)+1)*sizeof(char)) + VARHDRSZ;
     vdat = palloc(size);
-    PREFIX_SET_VARSIZE(vdat, size);
+    SET_VARSIZE(vdat, size);
     memcpy(VARDATA(vdat), pr, (size - VARHDRSZ));
 
 #ifdef DEBUG_MAKE_VARLENA
     elog(NOTICE, "make varlena: size=%d varsize=%d compressed=%c external=%c %s[%c-%c] %s[%c-%c]",
 	 size,
-	 PREFIX_VARSIZE(vdat),
+	 VARSIZE_ANY_EXHDR(vdat),
 	 (VARATT_IS_COMPRESSED(vdat) ? 't' : 'f'),
 	 (VARATT_IS_EXTERNAL(vdat)   ? 't' : 'f'),
 	 pr->prefix,
@@ -574,9 +536,9 @@ bool pr_contains(prefix_range *left, prefix_range *right, bool eqval) {
 static inline
 bool pr_contains_prefix(prefix_range *pr, text *query, bool eqval) {
   int plen = strlen(pr->prefix);
-  int qlen = PREFIX_VARSIZE(query);
+  int qlen = VARSIZE_ANY_EXHDR(query);
   char *p  = pr->prefix;
-  char *q  = (char *)PREFIX_VARDATA(query);
+  char *q  = (char *)VARDATA_ANY(query);
 
   if( __prefix_contains(p, q, plen, qlen) ) {
     if( pr->first == 0 || qlen == plen ) {
@@ -1271,13 +1233,10 @@ pr_penalty(PG_FUNCTION_ARGS)
 }
 
 /*
- * Don't bother compiling this for 8.1, where pg_qsort ain't available.
- *
- * That's an experimental feature anyway, only used in the
+ * That's an experimental feature, only used in the
  * gist_prefix_range_jordan_ops opclass, which is not talked about in the
  * user documentation of the module.
  */
-#if PG_VERSION_NUM > 801
 static int gpr_cmp(const void *a, const void *b) {
   GISTENTRY **e1 = (GISTENTRY **)a;
   GISTENTRY **e2 = (GISTENTRY **)b;
@@ -1286,7 +1245,6 @@ static int gpr_cmp(const void *a, const void *b) {
 
   return pr_cmp(k1, k2);
 }
-#endif
 
 /**
  * Median idea from Jordan:
@@ -1332,13 +1290,8 @@ gpr_picksplit_jordan(PG_FUNCTION_ARGS)
       raw_entryvec[i] = &(entryvec->vector[i]);
 
     /* Sort the raw entry vector.
-     *
-     * It seems that pg_qsort isn't available in 8.1, but this code is
-     * experimental so we simply don't presort.
      */
-#if PG_VERSION_NUM > 801
     pg_qsort(&raw_entryvec[1], maxoff, sizeof(void *), &gpr_cmp);
-#endif
 
     /*
      * Find the distance between the middle of the raw entry vector and the

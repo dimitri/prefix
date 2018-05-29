@@ -1396,7 +1396,7 @@ OffsetNumber *pr_presort(GistEntryVector *list)
   OffsetNumber maxoff = list->n - 1;
   prefix_range *init  = DatumGetPrefixRange(ent[FirstOffsetNumber].key);
   prefix_range *cur, *gp;
-  int  gplen, maxlen;
+  int  gplen;
   bool found;
 
   struct gpr_unions max;
@@ -1561,8 +1561,6 @@ OffsetNumber *pr_presort(GistEntryVector *list)
        DatumGetCString(DirectFunctionCall1(prefix_range_out,PrefixRangeGetDatum(max.prefix))),
        max.n, result_it);
 #endif
-
-  maxlen = strlen((max.prefix)->prefix);
 
   for(i = FirstOffsetNumber; i <= maxoff; i = OffsetNumberNext(i)) {
     cur = DatumGetPrefixRange(ent[i].key);
@@ -1829,7 +1827,7 @@ gpr_union(PG_FUNCTION_ARGS)
     GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
     GISTENTRY *ent = entryvec->vector;
 
-    prefix_range *out, *tmp, *old;
+    prefix_range *out, *tmp;
     int	numranges, i = 0;
 
     numranges = entryvec->n;
@@ -1843,7 +1841,9 @@ gpr_union(PG_FUNCTION_ARGS)
     }
 
     for (i = 1; i < numranges; i++) {
-      old = out;
+#ifdef DEBUG_UNION
+      prefix_range *old = out;
+#endif
       tmp = DatumGetPrefixRange(ent[i].key);
       out = pr_union(out, tmp);
 

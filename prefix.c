@@ -860,7 +860,7 @@ prefix_range_lt(PG_FUNCTION_ARGS)
 {
   PG_RETURN_BOOL( pr_lt(PG_GETARG_PREFIX_RANGE_P(0),
 			PG_GETARG_PREFIX_RANGE_P(1),
-			FALSE) );
+			false) );
 }
 
 PG_FUNCTION_INFO_V1(prefix_range_le);
@@ -869,7 +869,7 @@ prefix_range_le(PG_FUNCTION_ARGS)
 {
   PG_RETURN_BOOL( pr_lt(PG_GETARG_PREFIX_RANGE_P(0),
 			PG_GETARG_PREFIX_RANGE_P(1),
-			TRUE) );
+			true) );
 }
 
 PG_FUNCTION_INFO_V1(prefix_range_gt);
@@ -878,7 +878,7 @@ prefix_range_gt(PG_FUNCTION_ARGS)
 {
   PG_RETURN_BOOL( pr_gt(PG_GETARG_PREFIX_RANGE_P(0),
 			PG_GETARG_PREFIX_RANGE_P(1),
-			FALSE) );
+			false) );
 }
 
 PG_FUNCTION_INFO_V1(prefix_range_ge);
@@ -887,7 +887,7 @@ prefix_range_ge(PG_FUNCTION_ARGS)
 {
   PG_RETURN_BOOL( pr_gt(PG_GETARG_PREFIX_RANGE_P(0),
 			PG_GETARG_PREFIX_RANGE_P(1),
-			TRUE) );
+			true) );
 }
 
 PG_FUNCTION_INFO_V1(prefix_range_cmp);
@@ -914,7 +914,7 @@ prefix_range_contains(PG_FUNCTION_ARGS)
 {
   PG_RETURN_BOOL( pr_contains(PG_GETARG_PREFIX_RANGE_P(0),
 			      PG_GETARG_PREFIX_RANGE_P(1),
-			      TRUE ));
+			      true ));
 }
 
 PG_FUNCTION_INFO_V1(prefix_range_contains_strict);
@@ -923,7 +923,7 @@ prefix_range_contains_strict(PG_FUNCTION_ARGS)
 {
   PG_RETURN_BOOL( pr_contains(PG_GETARG_PREFIX_RANGE_P(0),
 			      PG_GETARG_PREFIX_RANGE_P(1),
-			      FALSE ));
+			      false ));
 }
 
 PG_FUNCTION_INFO_V1(prefix_range_contained_by);
@@ -932,7 +932,7 @@ prefix_range_contained_by(PG_FUNCTION_ARGS)
 {
   PG_RETURN_BOOL( pr_contains(PG_GETARG_PREFIX_RANGE_P(1),
 			      PG_GETARG_PREFIX_RANGE_P(0),
-			      TRUE ));
+			      true ));
 }
 
 PG_FUNCTION_INFO_V1(prefix_range_contained_by_strict);
@@ -941,7 +941,7 @@ prefix_range_contained_by_strict(PG_FUNCTION_ARGS)
 {
   PG_RETURN_BOOL( pr_contains(PG_GETARG_PREFIX_RANGE_P(1),
 			      PG_GETARG_PREFIX_RANGE_P(0),
-			      FALSE ));
+			      false ));
 }
 
 PG_FUNCTION_INFO_V1(prefix_range_union);

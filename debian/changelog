@@ -1,3 +1,9 @@
+prefix (1.2.8-1) unstable; urgency=medium
+
+  * New upstream version with PG11 support.
+
+ -- Christoph Berg <myon@debian.org>  Tue, 29 May 2018 22:13:10 +0200
+
 prefix (1.2.7-1) unstable; urgency=medium
 
   * New upstream version, removing support for 8.x and fixing compatibility

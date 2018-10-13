@@ -1,3 +1,9 @@
+prefix (1.2.8-2) unstable; urgency=medium
+
+  * Upload for PostgreSQL 11.
+
+ -- Christoph Berg <myon@debian.org>  Sat, 13 Oct 2018 22:46:04 +0200
+
 prefix (1.2.8-1) unstable; urgency=medium
 
   * New upstream version with PG11 support.

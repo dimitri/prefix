@@ -16,8 +16,8 @@ will try to match a phone number to the longest prefix in the table:
     SELECT * 
       FROM prefixes
      WHERE prefix @> '0123456789'
-  ORDER BY length(prefix) DESC
-     LIMIT 1;
+    ORDER BY length(prefix) DESC
+      LIMIT 1;
 
 ## Installation
 

@@ -1,4 +1,6 @@
 set client_min_messages = warning;
+/* reset e_f_d to 0 in PG12+ */
+set extra_float_digits = 0;
 
 create table prefixes (
        prefix    text primary key,

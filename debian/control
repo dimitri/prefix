@@ -9,9 +9,9 @@ Vcs-Browser: https://github.com/dimitri/prefix
 Vcs-Git: git://github.com/dimitri/prefix.git
 XS-Testsuite: autopkgtest
 
-Package: postgresql-11-prefix
+Package: postgresql-12-prefix
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}, postgresql-11
+Depends: ${misc:Depends}, ${shlibs:Depends}, postgresql-12
 Description: Prefix Range module for PostgreSQL
  This PostgreSQL module provides the prefix_range datatype, allowing to
  index searches such as finding the longest prefix matching a telephone
@@ -21,4 +21,3 @@ Description: Prefix Range module for PostgreSQL
  .
  The prefix column has to be of type prefix_range, and any text field
  can get indexed by the provided GiST opclass.
-

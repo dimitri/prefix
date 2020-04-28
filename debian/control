@@ -7,7 +7,6 @@ Build-Depends: debhelper (>= 10~), postgresql-server-dev-all (>= 158~)
 Standards-Version: 4.3.0
 Vcs-Browser: https://github.com/dimitri/prefix
 Vcs-Git: https://github.com/dimitri/prefix.git
-XS-Testsuite: autopkgtest
 
 Package: postgresql-12-prefix
 Architecture: any

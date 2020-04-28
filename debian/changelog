@@ -1,6 +1,7 @@
 prefix (1.2.9-3) UNRELEASED; urgency=medium
 
   * Trim trailing whitespace.
+  * Bump debhelper from deprecated 9 to 10.
 
  -- Debian Janitor <janitor@jelmer.uk>  Tue, 28 Apr 2020 23:42:57 +0000
 

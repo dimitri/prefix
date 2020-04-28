@@ -3,7 +3,7 @@ Section: database
 Priority: optional
 Maintainer: Debian PostgreSQL Maintainers <team+postgresql@tracker.debian.org>
 Uploaders: Dimitri Fontaine <dim@tapoueh.org>, Christoph Berg <myon@debian.org>
-Build-Depends: debhelper (>= 9), postgresql-server-dev-all (>= 158~)
+Build-Depends: debhelper (>= 10~), postgresql-server-dev-all (>= 158~)
 Standards-Version: 4.3.0
 Vcs-Browser: https://github.com/dimitri/prefix
 Vcs-Git: git://github.com/dimitri/prefix.git

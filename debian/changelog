@@ -1,3 +1,15 @@
+prefix (1.2.9-3) UNRELEASED; urgency=medium
+
+  * Trim trailing whitespace.
+  * Bump debhelper from deprecated 9 to 10.
+  * Set upstream metadata fields: Bug-Database, Bug-Submit, Repository,
+    Repository-Browse.
+  * Use secure URI in Vcs control header Vcs-Git.
+  * Remove unnecessary XS-Testsuite field in debian/control.
+  * Update standards version to 4.5.0, no changes needed.
+
+ -- Debian Janitor <janitor@jelmer.uk>  Tue, 28 Apr 2020 23:42:57 +0000
+
 prefix (1.2.9-2) unstable; urgency=medium
 
   * Upload for PostgreSQL 12.
@@ -187,4 +199,3 @@ prefix (0.2-1) unstable; urgency=low
   * Initial release
 
  -- Dimitri Fontaine <dim@tapoueh.org>  Tue, 22 Apr 2008 11:42:09 +0200
-

@@ -1,3 +1,3 @@
-Depends: @, make, postgresql-server-dev-all
+Depends: @, make, make
 Tests: installcheck
 Restrictions: allow-stderr

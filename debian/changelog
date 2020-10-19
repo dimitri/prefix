@@ -1,4 +1,4 @@
-prefix (1.2.9-3) UNRELEASED; urgency=medium
+prefix (1.2.9-3) unstable; urgency=medium
 
   [ Debian Janitor ]
   * Trim trailing whitespace.
@@ -13,8 +13,10 @@ prefix (1.2.9-3) UNRELEASED; urgency=medium
   * Upload for PostgreSQL 13.
   * Use dh --with pgxs.
   * DH 13.
+  * R³: no.
+  * debian/tests: Use 'make' instead of postgresql-server-dev-all.
 
- -- Debian Janitor <janitor@jelmer.uk>  Tue, 28 Apr 2020 23:42:57 +0000
+ -- Christoph Berg <myon@debian.org>  Mon, 19 Oct 2020 22:16:06 +0200
 
 prefix (1.2.9-2) unstable; urgency=medium
 

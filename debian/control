@@ -9,9 +9,9 @@ Rules-Requires-Root: no
 Vcs-Browser: https://github.com/dimitri/prefix
 Vcs-Git: https://github.com/dimitri/prefix.git
 
-Package: postgresql-13-prefix
+Package: postgresql-14-prefix
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}, postgresql-13
+Depends: ${misc:Depends}, ${shlibs:Depends}, postgresql-14
 Description: Prefix Range module for PostgreSQL
  This PostgreSQL module provides the prefix_range datatype, allowing to
  index searches such as finding the longest prefix matching a telephone

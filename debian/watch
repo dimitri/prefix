@@ -1,2 +1,2 @@
 version=4
-https://github.com/dimitri/prefix/releases .*/v(.*).tar.gz
+https://github.com/dimitri/prefix/tags .*/v(.*).tar.gz

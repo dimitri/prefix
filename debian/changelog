@@ -1,3 +1,9 @@
+prefix (1.2.10-1) unstable; urgency=medium
+
+  * New version with PG16 support.
+
+ -- Christoph Berg <myon@debian.org>  Wed, 05 Jul 2023 15:15:08 +0200
+
 prefix (1.2.9-5) unstable; urgency=medium
 
   * Upload for PostgreSQL 15.

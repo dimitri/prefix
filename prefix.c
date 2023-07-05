@@ -89,7 +89,7 @@ Datum prefix_range_contained_by_strict(PG_FUNCTION_ARGS);
 Datum prefix_range_union(PG_FUNCTION_ARGS);
 Datum prefix_range_inter(PG_FUNCTION_ARGS);
 
-#define DatumGetPrefixRange(X)	          ((prefix_range *) VARDATA_ANY(DatumGetPointer(X)) )
+#define DatumGetPrefixRange(X)	          ((prefix_range *) VARDATA_ANY(X) )
 #define PrefixRangeGetDatum(X)	          PointerGetDatum(make_varlena(X))
 #define PG_GETARG_PREFIX_RANGE_P(n)	  DatumGetPrefixRange(PG_DETOAST_DATUM(PG_GETARG_DATUM(n)))
 #define PG_RETURN_PREFIX_RANGE_P(x)	  return PrefixRangeGetDatum(x)
@@ -1808,7 +1808,7 @@ gpr_picksplit(PG_FUNCTION_ARGS)
     GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
     GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
 
-    PG_RETURN_POINTER(pr_picksplit(entryvec, v, false));
+    PG_RETURN_DATUM(pr_picksplit(entryvec, v, false));
 }
 
 PG_FUNCTION_INFO_V1(gpr_picksplit_presort);
@@ -1818,7 +1818,7 @@ gpr_picksplit_presort(PG_FUNCTION_ARGS)
     GistEntryVector *entryvec = (GistEntryVector *) PG_GETARG_POINTER(0);
     GIST_SPLITVEC *v = (GIST_SPLITVEC *) PG_GETARG_POINTER(1);
 
-    PG_RETURN_POINTER(pr_picksplit(entryvec, v, true));
+    PG_RETURN_DATUM(pr_picksplit(entryvec, v, true));
 }
 
 PG_FUNCTION_INFO_V1(gpr_union);

@@ -6,10 +6,8 @@
  * routing.
  *
  * Many thanks to AndrewSN, who provided great amount of help in the
- * writting of this opclass, on the PostgreSQL internals, GiST inner
+ * writing of this opclass, on the PostgreSQL internals, GiST inner
  * working and prefix search analyses.
- *
- * $Id: prefix.c,v 1.54 2009/10/06 09:55:32 dim Exp $
  */
 
 #include <stdio.h>
@@ -21,6 +19,9 @@
 #include "utils/palloc.h"
 #include "utils/builtins.h"
 #include "libpq/pqformat.h"
+#if PG_VERSION_NUM >= 160000
+#include "varatt.h"
+#endif
 #include <math.h>
 
 /**

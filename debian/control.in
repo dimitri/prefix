@@ -4,14 +4,14 @@ Priority: optional
 Maintainer: Debian PostgreSQL Maintainers <team+postgresql@tracker.debian.org>
 Uploaders: Dimitri Fontaine <dim@tapoueh.org>, Christoph Berg <myon@debian.org>
 Build-Depends: debhelper-compat (= 13), postgresql-all (>= 217~)
-Standards-Version: 4.6.1
+Standards-Version: 4.6.2
 Rules-Requires-Root: no
 Vcs-Browser: https://github.com/dimitri/prefix
 Vcs-Git: https://github.com/dimitri/prefix.git
 
 Package: postgresql-PGVERSION-prefix
 Architecture: any
-Depends: ${misc:Depends}, ${shlibs:Depends}, postgresql-PGVERSION
+Depends: ${misc:Depends}, ${shlibs:Depends}, ${postgresql:Depends}
 Description: Prefix Range module for PostgreSQL
  This PostgreSQL module provides the prefix_range datatype, allowing to
  index searches such as finding the longest prefix matching a telephone

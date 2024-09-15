@@ -1,3 +1,11 @@
+prefix (1.2.10-3) unstable; urgency=medium
+
+  * Upload for PostgreSQL 17.
+  * Restrict to 64-bit architectures.
+  * Mark postgresql-all as <!nocheck>.
+
+ -- Christoph Berg <myon@debian.org>  Sun, 15 Sep 2024 14:23:58 +0200
+
 prefix (1.2.10-2) unstable; urgency=medium
 
   * Upload for PostgreSQL 16.

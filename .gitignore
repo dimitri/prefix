@@ -6,3 +6,5 @@ debian/files
 debian/*.log
 debian/*.substvars
 debian/postgresql-*-prefix/
+README.prefix.md
+TESTS.prefix.md

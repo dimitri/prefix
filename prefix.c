@@ -195,7 +195,6 @@ prefix_range *pr_normalize(prefix_range *a) {
  */
 static inline
 prefix_range *make_prefix_range(char *str, char first, char last) {
-  int len;
   prefix_range *pr = NULL;
 
   if( str != NULL )
@@ -203,10 +202,6 @@ prefix_range *make_prefix_range(char *str, char first, char last) {
 
   else
     pr = build_pr("", first, last);
-
-  len = strlen(pr->prefix);
-  memcpy(pr->prefix, str, len);
-  pr->prefix[len] = 0;
 
   return pr_normalize(pr);
 }
